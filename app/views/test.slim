@@ -1,5 +1,43 @@
 div.container
-	div.starter-template
-		h1 Bootstrap starter template
-		p.lead You didn't say anything!
-		p.lead Type something after the address in the bar (I.E. marketship.herokuapp.com/hi)
+  div.starter-template
+    div.col-md-4
+      form role="form" method="post"
+        div.form-group
+          label.pull-left for="eftInput" Parse EFT Output
+          textarea.form-control rows="30" id="eftInput" name="eftInput"
+        input class=["btn","btn-primary","pull-left"] type="submit" value="Submit"
+    div.col-md-8
+      table.table
+        thead
+          tr
+            th Qty
+            th Name
+            th Vol
+            th Slot
+        - if @db_item_list
+          tbody
+            - @db_item_list.each do |key,value|
+              - if value[:slot] == 'high'
+                tr.danger
+                  td = value[:qty]
+                  td = value[:typeName]
+                  td = value[:volume]
+                  td = value[:slot]
+              - elsif value[:slot] == 'mid'
+                tr.warning
+                  td = value[:qty]
+                  td = value[:typeName]
+                  td = value[:volume]
+                  td = value[:slot]
+              - elsif value[:slot] == 'low'
+                tr.success
+                  td = value[:qty]
+                  td = value[:typeName]
+                  td = value[:volume]
+                  td = value[:slot]
+              - else
+                tr
+                  td = value[:qty]
+                  td = value[:typeName]
+                  td = value[:volume]
+                  td = value[:slot]

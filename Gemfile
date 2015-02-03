@@ -4,10 +4,7 @@ gem 'sinatra'
 gem 'slim'
 gem 'sequel'
 gem 'rake'
-
-group :development do
-	gem 'sqlite3'
-end
+gem 'sqlite3'
 
 group :production do
 	gem 'pg'

@@ -1,6 +1,7 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    mysql2 (0.3.17)
     pg (0.18.1)
     pg (0.18.1-x86-mingw32)
     rack (1.6.0)
@@ -25,6 +26,7 @@ PLATFORMS
   x86-mingw32
 
 DEPENDENCIES
+  mysql2
   pg
   rake
   sequel

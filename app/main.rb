@@ -33,7 +33,7 @@ def list_parse(eft_input)
   count_list = Hash.new
 
   # EVE SDE Database Connection and Tables
-  eve_db = Sequel.connect('sqlite://eveDBSlim.sqlite')
+  eve_db = Sequel.connect(ENV['http://15.126.200.102/'] || 'sqlite://eveDBSlim.sqlite')
   inv_types = eve_db[:invTypes]
   dgm_type_effects = eve_db[:dgmTypeEffects]
 

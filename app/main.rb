@@ -16,7 +16,7 @@ get '/:input' do
 end
 
 get '/' do
-  @db_item_hash = nil
+  @db_item_hash,@missing_items = nil,[]
   slim :test
 end
 

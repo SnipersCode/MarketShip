@@ -16,13 +16,14 @@ get '/:input' do
 end
 
 get '/' do
-  @db_item_list = nil
+  @db_item_hash = nil
   slim :test
 end
 
 post '/' do
   eft_input = params[:eftInput]
-  @db_item_list = list_parse(eft_input)
+  @db_item_hash,@missing_items = list_parse(eft_input)
+  puts @missing_items
   slim :test
 end
 
@@ -46,6 +47,7 @@ def list_parse(eft_input)
     eft_ship = eft_split[0].delete('[]').split(',')[0] # First line: Ship Parsing
     eft_items = [eft_ship] + eft_split.drop(1)
   else
+    eft_ship = nil
     eft_items = eft_split
   end
   eft_items.each do |item|
@@ -84,28 +86,35 @@ def list_parse(eft_input)
   end
 
   # Database Retrieval
-  db_item_list = inv_types.select(:typeID,:typeName,:volume).where(:typeName => item_list).to_hash(:typeID)
+  db_item_hash = inv_types.select(:typeID,:typeName,:volume).where(:typeName => item_list).to_hash(:typeID)
+  db_name_list = inv_types.where(:typeName => item_list).map(:typeName)
   ## Extra Value Additions
-  item_ids = db_item_list.keys
+  item_ids = db_item_hash.keys
   db_item_effects = dgm_type_effects.where(:typeID => item_ids).to_hash_groups(:typeID,:effectID)
-  db_item_list.each do |key,value|
+  db_item_hash.each do |key,value|
     ###Slot Identification
     if db_item_effects[key].include? 11 # Low slot
-      db_item_list[key][:slot] = 'low'
+      db_item_hash[key][:slot] = 'low'
     elsif db_item_effects[key].include? 12 # High slot
-      db_item_list[key][:slot] = 'high'
+      db_item_hash[key][:slot] = 'high'
     elsif db_item_effects[key].include? 13 # Mid slot
-      db_item_list[key][:slot] = 'mid'
+      db_item_hash[key][:slot] = 'mid'
     elsif db_item_effects[key].include? 2663 # Rig slot
-      db_item_list[key][:slot] = 'rig'
+      db_item_hash[key][:slot] = 'rig'
     elsif db_item_effects[key].include? 3772 # Subsystem slot
-      db_item_list[key][:slot] = 'sub'
+      db_item_hash[key][:slot] = 'sub'
+    elsif value[:typeName] == eft_ship # Ship if EFT Parsing was used
+      db_item_hash[key][:slot] = 'ship'
     else
-      db_item_list[key][:slot] = 'none'
+      db_item_hash[key][:slot] = 'none'
     end
     ###Quantity
-    db_item_list[key][:qty] = count_list[value[:typeName]]
+    db_item_hash[key][:qty] = count_list[value[:typeName]]
   end
 
-  db_item_list # Return Value
+  # Check for Missing Items
+  missing_items = item_list - db_name_list
+
+  return db_item_hash,missing_items
+
 end

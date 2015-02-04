@@ -1,43 +1,63 @@
 div.container
   div.starter-template
-    div.col-md-4
-      form role="form" method="post"
-        div.form-group
-          label.pull-left for="eftInput" Parse EFT Output
-          textarea.form-control rows="30" id="eftInput" name="eftInput"
-        input class=["btn","btn-primary","pull-left"] type="submit" value="Submit"
-    div.col-md-8
-      table.table
-        thead
-          tr
-            th Qty
-            th Name
-            th Vol
-            th Slot
-        - if @db_item_list
-          tbody
-            - @db_item_list.each do |key,value|
-              - if value[:slot] == 'high'
-                tr.danger
-                  td = value[:qty]
-                  td = value[:typeName]
-                  td = value[:volume]
-                  td = value[:slot]
-              - elsif value[:slot] == 'mid'
-                tr.warning
-                  td = value[:qty]
-                  td = value[:typeName]
-                  td = value[:volume]
-                  td = value[:slot]
-              - elsif value[:slot] == 'low'
-                tr.success
-                  td = value[:qty]
-                  td = value[:typeName]
-                  td = value[:volume]
-                  td = value[:slot]
-              - else
-                tr
-                  td = value[:qty]
-                  td = value[:typeName]
-                  td = value[:volume]
-                  td = value[:slot]
+    - if @missing_items.size != 0
+      div
+        ul.list-group
+          li class=["list-group-item","list-group-item-danger"] Warning! #{@missing_items.size} item(s) could not be parsed.
+          - @missing_items.each do |item|
+            li class=["list-group-item","list-group-item-warning"] = item
+
+    div
+      div.col-md-4
+        form role="form" method="post"
+          div.form-group
+            label.pull-left for="eftInput" Parse EFT Output
+            textarea.form-control rows="30" id="eftInput" name="eftInput"
+          input class=["btn","btn-primary","pull-left"] type="submit" value="Submit"
+      div.col-md-8
+        table class=["table","table-hover"]
+          thead
+            tr
+              th Qty
+              th Name
+              th Vol
+              th Slot
+          - if @db_item_hash
+            tbody
+              - @db_item_hash.each do |key,value|
+                - if value[:slot] == 'high'
+                  tr.danger
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                - elsif value[:slot] == 'mid'
+                  tr.warning
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                - elsif value[:slot] == 'low'
+                  tr.success
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                - elsif value[:slot] == 'rig'
+                  tr.info
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                - elsif value[:slot] == 'sub'
+                  tr
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                - else
+                  tr
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]

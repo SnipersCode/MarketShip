@@ -1,0 +1,8 @@
+{
+  "jitaShippingRate": 900,
+  "shippingSeparateVol": 80000,
+  "contractMaxVol": 320000,
+  "shippingBulkVol": 200000,
+  "minShippingPrice": 1000000,
+  "marketUpdateTime": 3600
+}

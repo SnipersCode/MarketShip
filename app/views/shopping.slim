@@ -1,0 +1,166 @@
+div.container
+  div.starter-template
+    - unless @missing_items.size == 0 && @errors[:eveCentral].nil?
+      div
+        ul.list-group
+          - unless @errors[:eveCentral].nil?
+            li class=["list-group-item","list-group-item-danger"] Error! Could not connect to EveCentral.
+          - unless @missing_items.size == 0
+            li class=["list-group-item","list-group-item-danger"] Warning! #{@missing_items.size} item(s) could not be parsed.
+            - @missing_items.each do |item|
+              li class=["list-group-item","list-group-item-warning"] = item
+    div
+      div.col-md-4
+        form role="form" method="post"
+          div.form-group
+            label.pull-left for="eftInput" Parse EFT Output
+            textarea.form-control rows="25" id="eftInput" name="eftInput" = @eft_input
+          div.form-group
+            button class=["btn","btn-primary"] type="submit" Parse
+        div class=["panel","panel-default"]
+          div.panel-heading
+            h3.panel-title Instructions
+          div.panel-body.text-left
+            p Easy Mode:
+            ul
+              li Paste an EFT formatted list above and hit "Parse".
+            p Advanced Mode:
+            ul
+              li You can put your shopping list in the box as well.
+            p Expert Mode:
+            ul
+              li Did you try adding "x#" (ex. x80) to the end of any item, like ammo?
+              li What about adding "/repeat #" (ex. /repeat 4) to the end of the list?
+        div class=["panel","panel-default"]
+          div.panel-heading
+            h3.panel-title Notes
+          div.panel-body.text-left
+            p
+              | All items are CASE SENSITIVE. Must be exactly how it looks like in game (every word is capitalized).
+                The page will tell you which items were not parsed correctly.
+            p EH shipping rules for this page were last updated on 7 February 2015.
+            p Currently, all prices are based off the lowest Jita sell price.
+            p All prices are cached from EveCentral. It will only refresh if the data is an hour old.
+            p Automatic Package Planner will fail if any items in the list are larger than the maximum EH contract size.
+            p Any line starting with '[', other than the first line, are ignored.
+            p If the first line starts with '[', it will read it as a EFT format.
+            p Please send an EveMail to VD. Kazuki Ishikawa if you find a bug explaining the situation.
+      div.col-md-8
+        table#items class=["table","table-hover"]
+          thead
+            tr
+              th Qty
+              th Name
+              th Vol
+              th Slot
+              th Price/Item
+              th Total
+          - if @db_item_hash
+            tbody
+              - @db_item_hash.each do |key,value|
+                - if value[:slot] == 'high'
+                  tr.danger
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                    td
+                      div.text-right = number_format(value[:sell])
+                    td
+                      div.text-right = number_format(value[:sellTotal])
+                - elsif value[:slot] == 'mid'
+                  tr.warning
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                    td
+                      div.text-right = number_format(value[:sell])
+                    td
+                      div.text-right = number_format(value[:sellTotal])
+                - elsif value[:slot] == 'low'
+                  tr.success
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                    td
+                      div.text-right = number_format(value[:sell])
+                    td
+                      div.text-right = number_format(value[:sellTotal])
+                - elsif value[:slot] == 'rig'
+                  tr.info
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                    td
+                      div.text-right = number_format(value[:sell])
+                    td
+                      div.text-right = number_format(value[:sellTotal])
+                - elsif value[:slot] == 'sub'
+                  tr
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                    td
+                      div.text-right = number_format(value[:sell])
+                    td
+                      div.text-right = number_format(value[:sellTotal])
+                - else
+                  tr
+                    td = value[:qty]
+                    td = value[:typeName]
+                    td = value[:volume]
+                    td = value[:slot]
+                    td
+                      div.text-right = number_format(value[:sell])
+                    td
+                      div.text-right = number_format(value[:sellTotal])
+        table.table-bordered class=["table","table-hover"]
+          tr
+            td Subtotal
+            td
+              div.text-right = number_format(@subtotal)
+          tr
+            td Total Shipping (Volume:#{number_format(@total_volume)})
+            td
+              div.text-right = number_format(@total_shipping)
+          tr
+            td Grand Total
+            td
+              div.text-right = number_format(@total_shipping + @subtotal)
+        - if @large_items > 0
+          div
+            ul.list-group
+              li class=["list-group-item","list-group-item-danger"]
+                ' Error. You have #{@large_items} item(s) that are larger than 360k m3.
+                ' Shipping calculator and automatic package planner disabled.
+        - elsif @initialized
+          h2 Automatic Package Planner
+          table.table-bordered class=["table","table-hover"]
+            tr
+              td EH Bulk Contracts (200k to 320k m3), Qty: #{@eh_bulk_contracts}, Vol: #{@total_volume - @package_std_vol}
+              td
+                div.text-right = number_format(@eh_bulk_price)
+            tr
+              td EH Standard Contracts (<= 80k m3), Qty: #{@eh_std_contracts}, Vol: #{@package_std_vol}
+              td
+                div.text-right = number_format(@eh_std_price)
+          - @packages.each do |number,package|
+            h3 Package #{number}
+            table class=["table","table-hover"]
+              thead
+                tr
+                  th Qty
+                  th Name
+                  th Total Vol
+              tbody
+                - package.each_key do |key|
+                  tr
+                    td = package[key][:qty]
+                    td = @db_item_hash[key][:typeName]
+                    td
+                      div.text-right = number_format(package[key][:vol])
+            h4 Total Volume: #{number_format(@package_vol[number])}

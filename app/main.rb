@@ -2,119 +2,165 @@ require 'sinatra'
 require 'slim'
 require 'sequel'
 
-#Primary DB Connection
-#primaryDB = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://marketshipdev.sqlite')
+require_relative 'stage1'
 
-get '/about/:input' do
-  @param1= params[:input]
-  slim :about
-end
-
-get '/:input' do
-  @param1 = params[:input]
-  slim :index
+get '/doctrines' do
+  slim :doctrines
 end
 
 get '/' do
+  @initialized = false
   @db_item_hash,@missing_items = nil,[]
-  slim :test
+  @large_items = 0
+  @subtotal = 0
+  @eh_bulk_price = 0
+  @eh_std_price = 0
+  @total_volume = 0
+  @total_shipping = 0
+  @errors = {}
+  slim :shopping
 end
 
 post '/' do
-  eft_input = params[:eftInput]
-  @db_item_hash,@missing_items = list_parse(eft_input)
-  puts @missing_items
-  slim :test
-end
-
-def list_parse(eft_input)
-  # Initializations
-  parse_list = []
-  item_list = []
-  count_list = Hash.new
-
-  # EVE SDE Database Connection and Tables
-  eve_db = Sequel.connect(ENV['EVE_SDE'] || 'sqlite://eveDBSlim.sqlite')
-  inv_types = eve_db[:invTypes]
-  dgm_type_effects = eve_db[:dgmTypeEffects]
-
-  # User Input Cleanup
-  eft_split = eft_input.strip.delete("\r").split("\n")
-
-  # Module Separation
-  ## for eft
-  if eft_split[0][0] == '['
-    eft_ship = eft_split[0].delete('[]').split(',')[0] # First line: Ship Parsing
-    eft_items = [eft_ship] + eft_split.drop(1)
+  @eft_input = params[:eftInput]
+  if params[:eftInput] == ''
+    @initialized = false
+    @db_item_hash,@missing_items = nil,[]
+    @large_items = 0
+    @subtotal = 0
+    @eh_bulk_price = 0
+    @eh_std_price = 0
+    @total_volume = 0
+    @total_shipping = 0
+    @errors = {}
   else
-    eft_ship = nil
-    eft_items = eft_split
-  end
-  eft_items.each do |item|
-    ## Empty slot and empty line removal
-    if item[0] == '[' or item == ''
-      next
-    end
-    ## Module and Ammo separation
-    if item.include? ','
-      parse_list += [item.split(',')[0],item.split(',')[1].strip]
-    else
-      parse_list += [item]
-    end
-  end
+    @initialized = true
 
-  # Module Counting
-  parse_list.each do |item|
-    # Remove x# from end
-    clean_item = item.gsub(/ x\d+$/,'')
-    unless item_list.include? clean_item
-      item_list += [clean_item]
+    config = {}
+    pack_vol = {}
+    File.open('configs/config.json', 'r') do |file|
+      config = JSON.load(file)
+    end
+    File.open('configs/packVol.json', 'r') do |file|
+      pack_vol = JSON.load(file)
     end
 
-    # Add # to qty
-    if item =~ / x\d+$/
-      if count_list[clean_item] != nil
-        count_list[clean_item] += item.match(/ x(\d+)$/).captures[0].to_i
-      else
-        count_list[clean_item] = item.match(/ x(\d+)$/).captures[0].to_i
+    @large_items = 0
+    @subtotal = 0
+    @eh_bulk_price = 0
+    @eh_std_price = 0
+    @total_volume = 0
+    @total_shipping = 0
+    items_to_pack = {}
+    @packages = {}
+
+    @errors = {}
+
+    eft_input = params[:eftInput]
+    @db_item_hash,@missing_items = list_parse(eft_input)
+    prices = market_lookup(@db_item_hash.keys,10000002)
+    @errors[:eveCentral] = prices[:error]
+    @db_item_hash.each_key do |key|
+      # Add EveCentral Prices
+      @db_item_hash[key][:sell] = prices[key]
+
+      # Volume correction for packaged ships
+      unless pack_vol[@db_item_hash[key][:typeName]].nil?
+        @db_item_hash[key][:volume] = pack_vol[@db_item_hash[key][:typeName]]
       end
-    elsif count_list[clean_item] != nil
-      count_list[clean_item] += 1
-    else
-      count_list[clean_item] = 1
+
+      #Per item price calculations
+      @db_item_hash[key][:sellTotal] = prices[key] * @db_item_hash[key][:qty]
+      @subtotal += prices[key] * @db_item_hash[key][:qty]
+
+      #Order Calculations
+      @total_volume += @db_item_hash[key][:volume] * @db_item_hash[key][:qty]
+      if @db_item_hash[key][:volume] > config['contractMaxVol']
+        @large_items += 1
+      end
+
+      #Packaging Setup
+      items_to_pack[key] = {:key => key, :qty => @db_item_hash[key][:qty], :vol => @db_item_hash[key][:volume]}
+    end
+
+    unless @large_items > 0
+      # Packaging
+      package_num = 1
+      volume_to_pack = @total_volume
+
+      # Break up orders larger than max contract size
+      # If last volume of loop is > shippingBulkVol, just use bulk
+      while volume_to_pack > config['shippingBulkVol']
+        # Set up box
+        package_space = config['contractMaxVol']
+        @packages[package_num] = {} # Create box inventory
+        # Sort by size and check if each item will fit
+        items_to_pack.values.sort_by{ |x| x[:vol]}.each do |value|
+          qty_packed = 0
+          vol_packed = 0
+          # Check if the current item fits and item has not run out
+          # Put item into box until the item would no longer fit or it ran out of the item
+          while value[:vol] < package_space && items_to_pack[value[:key]][:qty] != 0
+            items_to_pack[value[:key]][:qty] -= 1
+            qty_packed += 1
+            package_space -= value[:vol]
+            volume_to_pack -= value[:vol]
+            vol_packed += value[:vol]
+          end
+          unless qty_packed == 0
+            @packages[package_num][value[:key]] = {:qty => qty_packed,:vol => vol_packed} # Add to box inventory
+          end
+        end
+        package_num += 1
+      end
+      @eh_bulk_contracts = package_num - 1
+      # Repeat for standard contracts
+      while volume_to_pack > 0.0024 # Smallest item in the game is 0.0025
+        # Set up box
+        package_space = config['shippingSeparateVol']
+        @packages[package_num] = {} # Create box inventory
+        # Sort by size and check if each item will fit
+        items_to_pack.values.sort_by{ |x| x[:vol]}.each do |value|
+          qty_packed = 0
+          vol_packed = 0
+          # Check if the current item fits and item has not run out
+          # Put item into box until the item would no longer fit or it ran out of the item
+          while value[:vol] < package_space && items_to_pack[value[:key]][:qty] != 0
+            items_to_pack[value[:key]][:qty] -= 1
+            qty_packed += 1
+            package_space -= value[:vol]
+            volume_to_pack -= value[:vol]
+            vol_packed += value[:vol]
+          end
+          unless qty_packed == 0
+            @packages[package_num][value[:key]] = {:qty => qty_packed,:vol => vol_packed} # Add to box inventory
+          end
+        end
+        package_num += 1
+      end
+      @eh_std_contracts = package_num - 1 - @eh_bulk_contracts
+
+      # Box Volume Totals
+      @package_vol = {}
+      @package_std_vol = 0
+      @packages.each do |number,package|
+        @package_vol[number] = 0
+        package.each_key do |key|
+          @package_vol[number] += package[key][:vol]
+          if number > @eh_bulk_contracts
+            @package_std_vol += package[key][:vol]
+          end
+        end
+      end
+
+      # EH price calculations
+      @eh_std_price = @package_std_vol * config['jitaShippingRate']
+      @eh_bulk_price = @eh_bulk_contracts * config['shippingBulkVol'] * config['jitaShippingRate']
+      @total_shipping = @eh_bulk_price + @eh_std_price
+      if @total_shipping < config['minShippingPrice']
+        @total_shipping = config['minShippingPrice']
+      end
     end
   end
-
-  # Database Retrieval
-  db_item_hash = inv_types.select(:typeID,:typeName,:volume).where(:typeName => item_list).to_hash(:typeID)
-  db_name_list = inv_types.where(:typeName => item_list).map(:typeName)
-  ## Extra Value Additions
-  item_ids = db_item_hash.keys
-  db_item_effects = dgm_type_effects.where(:typeID => item_ids).to_hash_groups(:typeID,:effectID)
-  db_item_hash.each do |key,value|
-    ###Slot Identification
-    if db_item_effects[key].include? 11 # Low slot
-      db_item_hash[key][:slot] = 'low'
-    elsif db_item_effects[key].include? 12 # High slot
-      db_item_hash[key][:slot] = 'high'
-    elsif db_item_effects[key].include? 13 # Mid slot
-      db_item_hash[key][:slot] = 'mid'
-    elsif db_item_effects[key].include? 2663 # Rig slot
-      db_item_hash[key][:slot] = 'rig'
-    elsif db_item_effects[key].include? 3772 # Subsystem slot
-      db_item_hash[key][:slot] = 'sub'
-    elsif value[:typeName] == eft_ship # Ship if EFT Parsing was used
-      db_item_hash[key][:slot] = 'ship'
-    else
-      db_item_hash[key][:slot] = 'none'
-    end
-    ###Quantity
-    db_item_hash[key][:qty] = count_list[value[:typeName]]
-  end
-
-  # Check for Missing Items
-  missing_items = item_list - db_name_list
-
-  return db_item_hash,missing_items
-
+  slim :shopping
 end

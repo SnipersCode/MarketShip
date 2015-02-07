@@ -4,6 +4,7 @@ gem 'sinatra'
 gem 'slim'
 gem 'sequel'
 gem 'rake'
+gem 'httparty'
 
 group :development do
 	gem 'sqlite3'

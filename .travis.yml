@@ -6,6 +6,8 @@ deploy:
   provider: heroku
   api_key:
     secure: PbfttA6sWKxzUWc4I/Bj8smracIZvQxp0ilgLYifLZGuasgmr0OF0+ne+gt8Ugca72ABslAMk7S+w+U0VVRbyxUJEzfQgkRCqNdLba6k+f8DmImu+89EG5acNrTyBvsYgnMZYMkfIOU4kCG78s8uo7I74LN9LrE2JC3jk314EO4=
-  app: marketship
+  app: 
+	master: marketship
+	beta: betamarketship
   on:
     repo: SnipersCode/MarketShip

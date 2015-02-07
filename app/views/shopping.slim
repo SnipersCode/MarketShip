@@ -141,11 +141,11 @@ div.container
           h2 Automatic Package Planner
           table.table-bordered class=["table","table-hover"]
             tr
-              td EH Bulk Contracts (200k to 320k m3), Qty: #{@eh_bulk_contracts}, Vol: #{@total_volume - @package_std_vol}
+              td EH Bulk Contracts (200k to 320k m3), Qty: #{@eh_bulk_contracts}, Vol: #{number_format(@total_volume - @package_std_vol)}
               td
                 div.text-right = number_format(@eh_bulk_price)
             tr
-              td EH Standard Contracts (<= 80k m3), Qty: #{@eh_std_contracts}, Vol: #{@package_std_vol}
+              td EH Standard Contracts (<= 80k m3), Qty: #{@eh_std_contracts}, Vol: #{number_format(@package_std_vol)}
               td
                 div.text-right = number_format(@eh_std_price)
           - @packages.each do |number,package|

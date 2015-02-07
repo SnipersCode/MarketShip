@@ -174,4 +174,5 @@ end
 # DB Caching Classes
 DB = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://configs/marketshipdev.sqlite')
 class Jita_lookup < Sequel::Model
+  set_primary_key :typeID
 end

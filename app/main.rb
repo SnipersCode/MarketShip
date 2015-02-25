@@ -39,22 +39,8 @@ end
 get '/login' do
   if params[:code] and (params[:state] == session[:state])
     # If redirected from Eve SSO, retrieve account info
-    token = HTTParty.post('https://login.eveonline.com/oauth/token',
-                  :headers => {
-                      'Authorization' => 'Basic ' + Base64.urlsafe_encode64(ENV['EVE_CID'] + ':' + params[:code]),
-                      'Content-Type' => 'application/x-www-form-urlencoded',
-                      'Host' => 'login.eveonline.com'
-                  },
-                  :body => 'grant_type=authorization_code&code=' + params[:code]
-    )
-    puts token
-    crestChar = HTTParty.get('https://login.eveonline.com/oauth/verify',
-                             :headers => {
-                                 'User-Agent' => 'MarketShip,V1,Main Character: Kazuki Ishikawa',
-                                 'Authorization' => 'Bearer ' + token[:access_token],
-                                 'Host' => 'login.eveonline.com'
-                             }
-    )
+    token = EveSSO.token
+    crestChar = EveSSO.verify(token[:access_token])
 
     # Set cookies for logged in character
     session[:charID] = crestChar[:CharacterID]

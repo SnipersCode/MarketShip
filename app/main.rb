@@ -47,9 +47,10 @@ get '/login' do
                   },
                   :body => 'grant_type=authorization_code&code=' + params[:code]
     )
+    puts token
     crestChar = HTTParty.get('https://login.eveonline.com/oauth/verify',
                              :headers => {
-                                 'User-Agent' => 'MarketShip,V1,Character%3AKazuki%20Ishikawa',
+                                 'User-Agent' => 'MarketShip,V1,Main Character: Kazuki Ishikawa',
                                  'Authorization' => 'Bearer ' + token[:access_token],
                                  'Host' => 'login.eveonline.com'
                              }

@@ -24,6 +24,7 @@ configure do
     Integer :charID
     String :charName
     Integer :lastLogIn
+    String :refreshToken
   end
 
 end

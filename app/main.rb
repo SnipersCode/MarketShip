@@ -2,7 +2,7 @@ require 'sinatra'
 require 'slim'
 require 'sequel'
 
-require 'Base64'
+require 'base64'
 
 require_relative 'stage1'
 require_relative 'stage2'

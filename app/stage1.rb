@@ -77,7 +77,9 @@ def list_parse(eft_input)
   db_item_effects = dgm_type_effects.where(:typeID => item_ids).to_hash_groups(:typeID,:effectID)
   db_item_hash.each do |key,value|
     ###Slot Identification
-    if db_item_effects[key].include? 11 # Low slot
+    if db_item_effects[key] == nil # Catch for items that do not have an effect
+      db_item_hash[key][:slot] = 'none'
+    elsif db_item_effects[key].include? 11 # Low slot
       db_item_hash[key][:slot] = 'low'
     elsif db_item_effects[key].include? 12 # High slot
       db_item_hash[key][:slot] = 'high'
@@ -169,10 +171,4 @@ end
 
 def number_format(number)
   ('%.2f' % number).reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse
-end
-
-# DB Caching Classes
-DB = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://configs/marketshipdev.sqlite')
-class Jita_lookup < Sequel::Model
-  set_primary_key :typeID
 end

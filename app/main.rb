@@ -4,22 +4,19 @@ require 'sequel'
 
 require 'base64'
 
-require_relative 'stage1'
-require_relative 'stage2'
-
 enable :sessions #Cookies
+
+main_db = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://marketshipdev.sqlite')
 
 # Initial database setup
 configure do
-  DB = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://marketshipdev.sqlite')
-
-  DB.create_table?(:jita_lookups) do
+  main_db.create_table?(:jita_lookups) do
     Integer :typeID, :primary_key => true
     Float :sellLow
     Integer :time
   end
 
-  DB.create_table?(:accounts) do
+  main_db.create_table?(:accounts) do
     String :charHash, :primary_key => true
     Integer :charID
     String :charName
@@ -28,6 +25,14 @@ configure do
   end
 
 end
+
+# Main DB Classes
+class Jita_lookup < Sequel::Model(main_db)
+  set_primary_key :typeID
+end
+
+require_relative 'stage1'
+require_relative 'stage2'
 
 get '/' do
   slim :main

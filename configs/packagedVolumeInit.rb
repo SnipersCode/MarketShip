@@ -7,8 +7,8 @@
 require 'csv'
 require 'json'
 
-vol_csv = CSV.read('packVol.csv')
+vol_csv = CSV.read('../configs/packVol.csv')
 vol_hash = Hash[vol_csv[0].zip(vol_csv[1].map{|x| x.to_i})]
-open('packVol.json','w') do |file|
+open('../configs/packVol.json','w') do |file|
   file.puts JSON.pretty_generate(vol_hash)
 end

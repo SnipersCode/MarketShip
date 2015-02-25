@@ -2,13 +2,82 @@ require 'sinatra'
 require 'slim'
 require 'sequel'
 
+require 'Base64'
+
 require_relative 'stage1'
+require_relative 'stage2'
+
+enable :sessions #Cookies
+
+# Initial database setup
+configure do
+  DB = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://marketshipdev.sqlite')
+
+  DB.create_table?(:jita_lookups) do
+    Integer :typeID, :primary_key => true
+    Float :sellLow
+    Integer :time
+  end
+
+  DB.create_table?(:accounts) do
+    String :charHash, :primary_key => true
+    Integer :charID
+    String :charName
+    Integer :lastLogIn
+  end
+
+end
+
+get '/' do
+  slim :main
+end
 
 get '/doctrines' do
   slim :doctrines
 end
 
-get '/' do
+get '/login' do
+  if params[:code] and (params[:state] == session[:state])
+    # If redirected from Eve SSO, retrieve account info
+    token = HTTParty.post('https://login.eveonline.com/oauth/token',
+                  :headers => {
+                      'Authorization' => 'Basic ' + Base64.urlsafe_encode64(ENV['EVE_CID'] + ':' + params[:code]),
+                      'Content-Type' => 'application/x-www-form-urlencoded',
+                      'Host' => 'login.eveonline.com'
+                  },
+                  :body => 'grant_type=authorization_code&code=' + params[:code]
+    )
+    crestChar = HTTParty.get('https://login.eveonline.com/oauth/verify',
+                             :headers => {
+                                 'User-Agent' => 'MarketShip,V1,Character%3AKazuki%20Ishikawa',
+                                 'Authorization' => 'Bearer ' + token[:access_token],
+                                 'Host' => 'login.eveonline.com'
+                             }
+    )
+
+    # Set cookies for logged in character
+    session[:charID] = crestChar[:CharacterID]
+    session[:charHash] = crestChar[:CharacterOwnerHash]
+    session[:charName] = crestChar[:CharacterName]
+    # Update database
+    Accounts[crestChar[:CharacterOwnerHash]][:charID] = crestChar[:CharacterID]
+    Accounts[crestChar[:CharacterOwnerHash]][:charName] = crestChar[:CharacterName]
+    Accounts[crestChar[:CharacterOwnerHash]][:lastLogIn] = Time.now.to_i
+  elsif session[:charHash] or (params[:state] != session[:state])
+    # Redirect to home if already logged in or state response is not the same
+    redirect to('/')
+  else
+    # If not logged in, link to eve SSO
+    session[:state] = request.ip + ':' + Time.now.to_i.to_s
+    redirect('https://login.eveonline.com/oauth/authorize/?response_type=code' +
+                 '&redirect_uri=https://betamarketship.herokuapp.com/login' +
+                 '&client_id=' + ENV['EVE_CID'] +
+                 '&scope=publicData' +
+                 '&state=' + session[:state])
+  end
+end
+
+get '/shopping' do
   @initialized = false
   @db_item_hash,@missing_items = nil,[]
   @large_items = 0
@@ -21,7 +90,7 @@ get '/' do
   slim :shopping
 end
 
-post '/' do
+post '/shopping' do
   @eft_input = params[:eftInput]
   if params[:eftInput] == ''
     @initialized = false

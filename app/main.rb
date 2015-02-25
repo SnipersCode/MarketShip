@@ -40,6 +40,10 @@ get '/login' do
   if params[:code] and (params[:state] == session[:state])
     # If redirected from Eve SSO, retrieve account info
     token = EveSSO.token(params[:code])
+    puts 'token'
+    puts token
+    puts 'access_token'
+    puts token['access_token']
     crest_char = EveSSO.verify(token['access_token'])
 
     # Set cookies for logged in character

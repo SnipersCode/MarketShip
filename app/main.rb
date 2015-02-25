@@ -63,13 +63,13 @@ get '/login' do
 
     # Redirect to home after logging in
     redirect to('/')
-  elsif params[:state] != session[:state]
+  elsif params[:state] and params[:state] != session[:state]
     # If returned state is not correct
     # Reset character data in cookie
-    session[:charID] = crest_char['CharacterID']
-    session[:charHash] = crest_char['CharacterOwnerHash']
-    session[:charName] = crest_char['CharacterName']
-    
+    session[:charID] = nil
+    session[:charHash] = nil
+    session[:charName] = nil
+
     # Redirect to home
     redirect to('/')
   else

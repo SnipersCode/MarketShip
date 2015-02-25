@@ -7,7 +7,7 @@ class EveSSO
   def self.token(code)
     post('/token',
          :headers => {
-             'Authorization' => 'Basic ' + Base64.urlsafe_encode64(ENV['EVE_CID'] + ':' + code),
+             'Authorization' => 'Basic ' + Base64.urlsafe_encode64(ENV['EVE_CID'] + ':' + ENV['EVE_CS']),
              'Content-Type' => 'application/x-www-form-urlencoded',
              'Host' => 'login.eveonline.com'
          },

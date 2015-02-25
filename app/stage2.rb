@@ -4,14 +4,14 @@ class EveSSO
   base_uri 'https://login.eveonline.com/oauth'
   disable_rails_query_string_format
 
-  def self.token
+  def self.token(code)
     post('/token',
          :headers => {
              'Authorization' => 'Basic ' + Base64.urlsafe_encode64(ENV['EVE_CID'] + ':' + params[:code]),
              'Content-Type' => 'application/x-www-form-urlencoded',
              'Host' => 'login.eveonline.com'
          },
-         :body => 'grant_type=authorization_code&code=' + params[:code]
+         :body => 'grant_type=authorization_code&code=' + code
     )
   end
 

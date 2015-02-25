@@ -39,17 +39,20 @@ end
 get '/login' do
   if params[:code] and (params[:state] == session[:state])
     # If redirected from Eve SSO, retrieve account info
-    token = EveSSO.token
-    crestChar = EveSSO.verify(token[:access_token])
+    token = EveSSO.token(params[:code])
+    crest_char = EveSSO.verify(token[:access_token])
 
     # Set cookies for logged in character
-    session[:charID] = crestChar[:CharacterID]
-    session[:charHash] = crestChar[:CharacterOwnerHash]
-    session[:charName] = crestChar[:CharacterName]
+    session[:charID] = crest_char[:CharacterID]
+    session[:charHash] = crest_char[:CharacterOwnerHash]
+    session[:charName] = crest_char[:CharacterName]
     # Update database
-    Accounts[crestChar[:CharacterOwnerHash]][:charID] = crestChar[:CharacterID]
-    Accounts[crestChar[:CharacterOwnerHash]][:charName] = crestChar[:CharacterName]
-    Accounts[crestChar[:CharacterOwnerHash]][:lastLogIn] = Time.now.to_i
+    Accounts[crest_char[:CharacterOwnerHash]][:charID] = crest_char[:CharacterID]
+    Accounts[crest_char[:CharacterOwnerHash]][:charName] = crest_char[:CharacterName]
+    Accounts[crest_char[:CharacterOwnerHash]][:lastLogIn] = Time.now.to_i
+
+    # Redirect to home after logging in
+    redirect to('/')
   elsif session[:charHash] or (params[:state] != session[:state])
     # Redirect to home if already logged in or state response is not the same
     redirect to('/')

@@ -52,8 +52,11 @@ before do
     crest_char = EveSSO.verify(token['access_token'])
     puts crest_char['CharacterID']
     # Update database
-    Accounts[session[:charHash]][:refreshToken] = token['refresh_token']
-    Accounts[session[:charHash]][:lastLogIn] = Time.now.to_i
+    Accounts[session[:charHash]].update(:refreshToken => token['refresh_token'], :lastLogIn => Time.now.to_i)
+  elsif session[:charHash] == nil # Cookie clean up
+    session[:charID] = nil
+    session[:charHash] = nil
+    session[:charName] = nil
   end
 
 end
@@ -97,7 +100,7 @@ get '/login' do
     # Redirect to home after logging in
     redirect to('/')
   elsif params[:state] and params[:state] != session[:state]
-    # If returned state is not correct
+    # If returned state is not correct (Unresolvable Error)
     # Reset character data in cookie
     session[:charID] = nil
     session[:charHash] = nil
@@ -116,7 +119,7 @@ get '/login' do
   end
 end
 
-get '/logoff' do
+get '/logout' do
   # Reset character data in cookie
   session[:charID] = nil
   session[:charHash] = nil

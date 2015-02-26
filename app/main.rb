@@ -41,6 +41,7 @@ require_relative 'stage2'
 before do
 
   # Read Config
+  config = {}
   File.open('configs/config.json', 'r') do |file|
     config = JSON.load(file)
   end

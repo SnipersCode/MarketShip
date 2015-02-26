@@ -48,8 +48,11 @@ before do
 
   if session[:charHash] and (Accounts[session[:charHash]][:lastLogIn] + config['logInTimeout']) < Time.now.to_i
     puts 'Check Refresh'
-    crest_char = EveSSO.verify(Accounts[session[:charHash]][:refreshToken])
-    puts crest_char # Determine if character is still part of LAWN
+    token = EveSSO.refresh(Accounts[session[:charHash]][:refreshToken])
+    crest_char = EveSSO.verify(token['access_token'])
+    puts crest_char['CharacterID']
+    # Update database
+    Accounts[session[:charHash]][:refreshToken] = token['refresh_token']
     Accounts[session[:charHash]][:lastLogIn] = Time.now.to_i
   end
 

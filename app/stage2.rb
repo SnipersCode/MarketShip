@@ -15,6 +15,17 @@ class EveSSO
     )
   end
 
+  def self.refresh(refresh_token)
+    post('/token',
+         :headers => {
+             'Authorization' => 'Basic ' + Base64.urlsafe_encode64(ENV['EVE_CID'] + ':' + ENV['EVE_CS']),
+             'Content-Type' => 'application/x-www-form-urlencoded',
+             'Host' => 'login.eveonline.com'
+         },
+         :body => 'grant_type=refresh_token&refresh_token=' + refresh_token
+    )
+  end
+
   def self.verify(access_token)
     get('https://login.eveonline.com/oauth/verify',
         :headers => {

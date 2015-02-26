@@ -5,5 +5,5 @@
   "shippingBulkVol": 200000,
   "minShippingPrice": 1000000,
   "marketUpdateTime": 3600,
-  "logInTimeout": 300
+  "logInTimeout": 60
 }

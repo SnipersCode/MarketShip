@@ -49,6 +49,7 @@ before do
   if session[:charHash] and (Accounts[session[:charHash]][:lastLogIn] + config['logInTimeout']) < Time.now.to_i
     puts 'Check Refresh'
     token = EveSSO.refresh(Accounts[session[:charHash]][:refreshToken])
+    puts token
     crest_char = EveSSO.verify(token['access_token'])
     puts crest_char['CharacterID']
     # Update database

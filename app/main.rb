@@ -31,8 +31,28 @@ class Jita_lookup < Sequel::Model(main_db)
   set_primary_key :typeID
 end
 
+class Accounts < Sequel::Model(main_db)
+  set_primary_key :charHash
+end
+
 require_relative 'stage1'
 require_relative 'stage2'
+
+before do
+
+  # Read Config
+  File.open('configs/config.json', 'r') do |file|
+    config = JSON.load(file)
+  end
+
+  if session[:charHash] and (Accounts[session[:charHash]][:lastLogIn] + config[:logInTimeout]) < Time.now.to_i
+    puts 'Check Refresh'
+    crest_char = EveSSO.verify(Accounts[session[:charHash]][:refreshToken])
+    puts crest_char['CharacterID'] # Determine if character is still part of LAWN
+    Accounts[session[:charHash]][:lastLogIn] = Time.now.to_i
+  end
+
+end
 
 get '/' do
   slim :main
@@ -52,6 +72,7 @@ get '/login' do
     session[:charID] = crest_char['CharacterID']
     session[:charHash] = crest_char['CharacterOwnerHash']
     session[:charName] = crest_char['CharacterName']
+    session
 
     # Update account database
     if Accounts[crest_char['CharacterOwnerHash']].nil?
@@ -59,12 +80,14 @@ get '/login' do
           :charHash => crest_char['CharacterOwnerHash'],
           :charID => crest_char['CharacterID'],
           :charName => crest_char['CharacterName'],
-          :lastLogIn => Time.now.to_i)
+          :lastLogIn => Time.now.to_i,
+          :refreshToken => token['refresh_token'])
     else
       Accounts[crest_char['CharacterOwnerHash']].update(
           :charID => crest_char['CharacterID'],
           :charName => crest_char['CharacterName'],
-          :lastLogIn => Time.now.to_i)
+          :lastLogIn => Time.now.to_i,
+          :refreshToken => token['refresh_token'])
     end
 
     # Redirect to home after logging in
@@ -87,6 +110,15 @@ get '/login' do
                  '&scope=publicData' +
                  '&state=' + session[:state])
   end
+end
+
+get '/logoff' do
+  # Reset character data in cookie
+  session[:charID] = nil
+  session[:charHash] = nil
+  session[:charName] = nil
+
+  redirect to('/')
 end
 
 get '/shopping' do

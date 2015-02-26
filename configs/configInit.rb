@@ -1,14 +1,15 @@
 require 'json'
 
 config = {
-    :jitaShippingRate => 900,
-    :shippingSeparateVol => 80000,
-    :contractMaxVol => 320000,
-    :shippingBulkVol => 200000,
-    :minShippingPrice => 1000000,
-    :marketUpdateTime => 3600
+    :jitaShippingRate => 900, #Isk
+    :shippingSeparateVol => 80000, #Isk
+    :contractMaxVol => 320000, #m3
+    :shippingBulkVol => 200000, #m3
+    :minShippingPrice => 1000000, #m3
+    :marketUpdateTime => 3600, #sec
+    :logInTimeout => 300 #sec
 }
 
-open('config.json','w') do |file|
+open('../configs/config.json','w') do |file|
   file.puts JSON.pretty_generate(config)
 end

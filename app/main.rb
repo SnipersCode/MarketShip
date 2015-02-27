@@ -25,7 +25,7 @@ configure do
     String :refreshToken
   end
 
-  main_db.create_table?(:char_api) do
+  main_db.create_table?(:char_apis) do
     Integer :charID, :primary_key => true
     Integer :corpID
     Integer :allianceID
@@ -67,8 +67,8 @@ before do
     # Update databases
     Accounts[session[:charHash]].update(:refreshToken => token['refresh_token'], :lastLogIn => Time.now.to_i)
     Char_api[session[:charID]].update(
-        :corpID => xml_char['result']['rowset']['row']['corporationID'],
-        :allianceID => xml_char['result']['rowset']['row']['allianceID'],
+        :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
+        :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
         :charHash => crest_char['CharacterOwnerHash'])
   elsif session[:charHash] == nil # Cookie clean up
     session[:charID] = nil
@@ -118,16 +118,16 @@ get '/login' do
     # Update character api database
     if Char_api[crest_char['CharacterID']].nil?
       Char_api.insert(
-          :charID => xml_char['result']['rowset']['row']['characterID'],
-          :corpID => xml_char['result']['rowset']['row']['corporationID'],
-          :allianceID => xml_char['result']['rowset']['row']['allianceID'],
+          :charID => xml_char['eveapi']['result']['rowset']['row']['characterID'],
+          :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
+          :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
           :charHash => crest_char['CharacterOwnerHash'])
     else
       Char_api[crest_char['CharacterID']].update(
-          :corpID => xml_char['result']['rowset']['row']['corporationID'],
-          :allianceID => xml_char['result']['rowset']['row']['allianceID'],
+          :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
+          :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
           :charHash => crest_char['CharacterOwnerHash'],
-          :cacheTime => DateTime.parse(xml_char['cachedUntil']).to_time.to_i)
+          :cacheTime => DateTime.parse(xml_char['eveapi']['cachedUntil']).to_time.to_i)
     end
 
     # Redirect to home after logging in

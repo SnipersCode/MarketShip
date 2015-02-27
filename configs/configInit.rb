@@ -7,7 +7,8 @@ config = {
     :shippingBulkVol => 200000, #m3
     :minShippingPrice => 1000000, #m3
     :marketUpdateTime => 3600, #sec
-    :logInTimeout => 300 #sec
+    :logInTimeout => 300, #sec
+    :allianceID => 150097440 #CCP
 }
 
 open('../configs/config.json','w') do |file|

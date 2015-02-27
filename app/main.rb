@@ -3,6 +3,7 @@ require 'slim'
 require 'sequel'
 
 require 'base64'
+require 'date'
 
 enable :sessions #Cookies
 
@@ -24,6 +25,14 @@ configure do
     String :refreshToken
   end
 
+  main_db.create_table?(:char_api) do
+    Integer :charID, :primary_key => true
+    Integer :corpID
+    Integer :allianceID
+    String :charHash
+    Integer :cacheTime
+  end
+
 end
 
 # Main DB Classes
@@ -33,6 +42,10 @@ end
 
 class Accounts < Sequel::Model(main_db)
   set_primary_key :charHash
+end
+
+class Char_api < Sequel::Model(main_db)
+  set_primary_key :charID
 end
 
 require_relative 'stage1'
@@ -46,14 +59,17 @@ before do
     config = JSON.load(file)
   end
 
-  if session[:charHash] and (Accounts[session[:charHash]][:lastLogIn] + config['logInTimeout']) < Time.now.to_i
+  if session[:charHash] and (Char_api[session[:charID]][:cacheTime] + config['logInTimeout']) < Time.now.to_i
     puts 'Check Refresh'
     token = EveSSO.refresh(Accounts[session[:charHash]][:refreshToken])
-    puts token
     crest_char = EveSSO.verify(token['access_token'])
-    puts crest_char['CharacterID']
-    # Update database
+    xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
+    # Update databases
     Accounts[session[:charHash]].update(:refreshToken => token['refresh_token'], :lastLogIn => Time.now.to_i)
+    Char_api[session[:charID]].update(
+        :corpID => xml_char['result']['rowset']['row']['corporationID'],
+        :allianceID => xml_char['result']['rowset']['row']['allianceID'],
+        :charHash => crest_char['CharacterOwnerHash'])
   elsif session[:charHash] == nil # Cookie clean up
     session[:charID] = nil
     session[:charHash] = nil
@@ -75,12 +91,13 @@ get '/login' do
     # If redirected from Eve SSO, retrieve account info
     token = EveSSO.token(params[:code])
     crest_char = EveSSO.verify(token['access_token'])
+    xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
+    puts xml_char
 
     # Set cookies for logged in character
     session[:charID] = crest_char['CharacterID']
     session[:charHash] = crest_char['CharacterOwnerHash']
     session[:charName] = crest_char['CharacterName']
-    session
 
     # Update account database
     if Accounts[crest_char['CharacterOwnerHash']].nil?
@@ -96,6 +113,21 @@ get '/login' do
           :charName => crest_char['CharacterName'],
           :lastLogIn => Time.now.to_i,
           :refreshToken => token['refresh_token'])
+    end
+
+    # Update character api database
+    if Char_api[crest_char['CharacterID']].nil?
+      Char_api.insert(
+          :charID => xml_char['result']['rowset']['row']['characterID'],
+          :corpID => xml_char['result']['rowset']['row']['corporationID'],
+          :allianceID => xml_char['result']['rowset']['row']['allianceID'],
+          :charHash => crest_char['CharacterOwnerHash'])
+    else
+      Char_api[crest_char['CharacterID']].update(
+          :corpID => xml_char['result']['rowset']['row']['corporationID'],
+          :allianceID => xml_char['result']['rowset']['row']['allianceID'],
+          :charHash => crest_char['CharacterOwnerHash'],
+          :cacheTime => DateTime.parse(xml_char['cachedUntil']).to_time.to_i)
     end
 
     # Redirect to home after logging in

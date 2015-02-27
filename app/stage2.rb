@@ -37,3 +37,20 @@ class EveSSO
   end
 
 end
+
+class EveXML
+  include HTTParty
+  format :xml
+  base_uri 'https://api.eveonline.com'
+  disable_rails_query_string_format
+
+  def self.characterAffiliation(ids)
+    #Build string of list of IDs
+    id_string = ids.shift.to_s
+    ids.each do |id|
+      id_string = id_string + ',' + id.to_s
+    end
+
+    get('/eve/CharacterAffiliation.xml.aspx', :query => {:ids => id_string})
+  end
+end

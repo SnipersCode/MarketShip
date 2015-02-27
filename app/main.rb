@@ -88,8 +88,10 @@ end
 
 # Page authentication checks
 set(:auth) do |lowestRole|
-  if lowestRole == :alliance and session[:allianceMember] == false
-    redirect to('/login')
+  condition do
+    if lowestRole == :alliance and session[:allianceMember] == false
+      redirect to('/login')
+    end
   end
 end
 

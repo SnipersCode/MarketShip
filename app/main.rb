@@ -69,7 +69,8 @@ before do
     Char_api[session[:charID]].update(
         :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
         :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
-        :charHash => crest_char['CharacterOwnerHash'])
+        :charHash => crest_char['CharacterOwnerHash'],
+        :cacheTime => DateTime.parse(xml_char['eveapi']['cachedUntil']).to_time.to_i)
   elsif session[:charHash] == nil # Cookie clean up
     session[:charID] = nil
     session[:charHash] = nil
@@ -121,7 +122,8 @@ get '/login' do
           :charID => xml_char['eveapi']['result']['rowset']['row']['characterID'],
           :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
           :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
-          :charHash => crest_char['CharacterOwnerHash'])
+          :charHash => crest_char['CharacterOwnerHash'],
+          :cacheTime => DateTime.parse(xml_char['eveapi']['cachedUntil']).to_time.to_i)
     else
       Char_api[crest_char['CharacterID']].update(
           :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],

@@ -108,6 +108,13 @@ get '/srp', :auth => :alliance do
 end
 
 get '/login' do
+  
+  # Read Config
+  config = {}
+  File.open('configs/config.json', 'r') do |file|
+    config = JSON.load(file)
+  end
+
   if params[:code] and (params[:state] == session[:state])
     # If redirected from Eve SSO, retrieve account info
     token = EveSSO.token(params[:code])

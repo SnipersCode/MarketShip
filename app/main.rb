@@ -59,8 +59,8 @@ before do
     config = JSON.load(file)
   end
 
+  # Refresh character info if cache time expires
   if session[:charHash] and (Char_api[session[:charID]][:cacheTime] + config['logInTimeout']) < Time.now.to_i
-    puts 'Check Refresh'
     token = EveSSO.refresh(Accounts[session[:charHash]][:refreshToken])
     crest_char = EveSSO.verify(token['access_token'])
     xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
@@ -77,14 +77,32 @@ before do
     session[:charName] = nil
   end
 
+  # Alliance member check
+  if session[:charHash] and Char_api[session[:charID]][:allianceID] == config['allianceID']
+    session[:allianceMember] = true
+  else
+    session[:allianceMember] = false
+  end
+
+end
+
+# Page authentication checks
+set(:auth) do |lowestRole|
+  if lowestRole == :alliance and session[:allianceMember] == false
+    redirect to('/login')
+  end
 end
 
 get '/' do
   slim :main
 end
 
-get '/doctrines' do
+get '/doctrines', :auth => :alliance do
   slim :doctrines
+end
+
+get '/srp', :auth => :alliance do
+  slim :srp
 end
 
 get '/login' do
@@ -92,8 +110,6 @@ get '/login' do
     # If redirected from Eve SSO, retrieve account info
     token = EveSSO.token(params[:code])
     crest_char = EveSSO.verify(token['access_token'])
-    xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
-    puts xml_char
 
     # Set cookies for logged in character
     session[:charID] = crest_char['CharacterID']
@@ -118,13 +134,15 @@ get '/login' do
 
     # Update character api database
     if Char_api[crest_char['CharacterID']].nil?
+      xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
       Char_api.insert(
           :charID => xml_char['eveapi']['result']['rowset']['row']['characterID'],
           :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
           :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
           :charHash => crest_char['CharacterOwnerHash'],
           :cacheTime => DateTime.parse(xml_char['eveapi']['cachedUntil']).to_time.to_i)
-    else
+    elsif (Char_api[crest_char['CharacterID']][:cacheTime] + config['logInTimeout']) < Time.now.to_i
+      xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
       Char_api[crest_char['CharacterID']].update(
           :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
           :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],

@@ -29,6 +29,11 @@ html lang="en"
               a href="/" Home
             li
               a href="/shopping" Shopping
+            - if session[:allianceMember]
+              li
+                a href="/doctrines" Doctrines
+              li
+                a href="/srp" SRP
           - if session[:charName]
             ul class=["nav","navbar-nav", 'navbar-right']
               li

@@ -1,2 +1,8 @@
+# RubyMine Output Files
 .idea
+
+# Eve SDE Database
 eveDB.sqlite
+
+# Database created for development
+dev.sqlite

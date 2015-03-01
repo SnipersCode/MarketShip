@@ -27,7 +27,7 @@ class EveSSO
   end
 
   def self.verify(access_token)
-    get('https://login.eveonline.com/oauth/verify',
+    get('/verify',
         :headers => {
             'User-Agent' => 'MarketShip,V1,Main Character: Kazuki Ishikawa',
             'Authorization' => 'Bearer ' + access_token,
@@ -53,4 +53,9 @@ class EveXML
 
     get('/eve/CharacterAffiliation.xml.aspx', :query => {:ids => id_string})
   end
+
+  def self.apiKeyInfo(keyID,vCode)
+    get('/account/APIKeyInfo.xml.aspx', :query => {:keyID => keyID, :vCode => vCode}, :verify => false)
+  end
+
 end

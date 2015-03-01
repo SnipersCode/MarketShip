@@ -4,9 +4,26 @@ body {
 
 .starter-template {
     padding: 40px 15px;
-    text-align: center;
 }
 
 .table td {
     text-align: left;
+}
+
+.ms_break{
+    word-break: break-all;
+    word-wrap: break-word;
+}
+
+.btn {
+    margin-bottom: 20px;
+}
+
+.ms_dataTable {
+    border: thin solid;
+}
+
+.dataTables_wrapper{
+    margin-top: 15px;
+    margin-bottom: 15px;
 }

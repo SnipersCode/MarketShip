@@ -1,0 +1,67 @@
+div.container
+  div.starter-template
+    div
+      div.col-md-4
+        div class=["panel","panel-default"]
+          div.panel-heading
+            h3.panel-title Instructions
+          div.panel-body.text-left
+            p Hi
+      div.col-md-8
+        - if @errors
+          div
+            ul.list-group
+              - if @errors[:key]
+                li class=["list-group-item","list-group-item-danger"] Key is wrong or has expired. Please input a different key.
+        form role="form" method="post"
+          div.form-group
+            label for="keyID" Key ID
+            input.form-control type="number" id="keyID" name="keyID" placeholder="keyID"
+          div.form-group
+            label for="vCode" Verification Code
+            input.form-control type="text" id="vCode" name="vCode" placeholder="vCode" pattern="[a-zA-Z0-9]+"
+          button type="submit" class=["btn","btn-primary"] Add
+        table.ms_dataTable class=["table","table-hover"]
+          thead
+            tr
+              th ID
+              th Name
+              th Key ID & Verification Code
+              th Expires
+              th Delete?
+          - if @db_char_hash
+            tbody
+              - @db_char_hash.each do |value|
+                - if value[:keyID]
+                  tr
+                    td = value[:charID]
+                    td = value[:charName]
+                    td
+                      p = 'keyID: ' + value[:keyID].to_s
+                      p.ms_break = 'vCode: ' + value[:vCode]
+                    - if value[:expiration] != 0
+                      td = Time.at(value[:expiration]).utc.to_s
+                    - else
+                      td Never
+                    td
+                      a href=("/api?delete=" + value[:charID].to_s) class="btn btn-danger" role="button" Delete
+        table.ms_dataTable class=["table","table-hover"]
+          thead
+            tr
+              th Name
+              th Corporation
+              th Alliance
+          - if @db_char_hash
+            tbody
+              - @db_char_hash.each do |value|
+                - if value[:keyID]
+                  - if value[:allianceID] == @alliance_check
+                    tr
+                      td = value[:charName]
+                      td = value[:corpName]
+                      td = value[:allianceName]
+                  - else
+                    tr.danger
+                      td = value[:charName]
+                      td = value[:corpName]
+                      td = value[:allianceName]

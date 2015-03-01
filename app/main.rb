@@ -7,7 +7,7 @@ require 'date'
 
 enable :sessions #Cookies
 
-main_db = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://marketshipdev.sqlite')
+main_db = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://dev.sqlite')
 
 # Initial database setup
 configure do
@@ -27,10 +27,27 @@ configure do
 
   main_db.create_table?(:char_apis) do
     Integer :charID, :primary_key => true
+    String :charName
     Integer :corpID
+    String :corpName
     Integer :allianceID
+    String :allianceName
     String :charHash
     Integer :cacheTime
+  end
+
+  main_db.create_table?(:key_apis) do
+    Integer :charID, :primary_key => true
+    String :charName
+    Integer :corpID
+    String :corpName
+    Integer :allianceID
+    String :allianceName
+    String :charHash
+    Integer :cacheTime
+    Integer :keyID
+    String :vCode
+    Integer :expiration
   end
 
 end
@@ -45,6 +62,10 @@ class Accounts < Sequel::Model(main_db)
 end
 
 class Char_api < Sequel::Model(main_db)
+  set_primary_key :charID
+end
+
+class Key_api < Sequel::Model(main_db)
   set_primary_key :charID
 end
 
@@ -68,7 +89,9 @@ before do
     Accounts[session[:charHash]].update(:refreshToken => token['refresh_token'], :lastLogIn => Time.now.to_i)
     Char_api[session[:charID]].update(
         :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
+        :corpName => xml_char['eveapi']['result']['rowset']['row']['corporationName'],
         :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
+        :allianceName => xml_char['eveapi']['result']['rowset']['row']['allianceName'],
         :charHash => crest_char['CharacterOwnerHash'],
         :cacheTime => DateTime.parse(xml_char['eveapi']['cachedUntil']).to_time.to_i)
   elsif session[:charHash] == nil # Cookie clean up
@@ -82,6 +105,15 @@ before do
     session[:allianceMember] = true
   else
     session[:allianceMember] = false
+  end
+
+  # Bypass login for development
+  unless ENV['DATABASE_URL']
+    session[:charHash] = nil # Must be nil
+    session[:charName] = 'Test Member'
+    session[:charID] = 94074701
+
+    session[:allianceMember] = true
   end
 
 end
@@ -105,6 +137,106 @@ end
 
 get '/srp', :auth => :alliance do
   slim :srp
+end
+
+get '/api', :auth => :alliance do
+
+  # Read Config
+  config = {}
+  File.open('configs/config.json', 'r') do |file|
+    config = JSON.load(file)
+  end
+  @alliance_check = config['allianceID'].to_i
+
+  @errors = nil
+  if params[:delete] and Key_api[params[:delete]][:charHash] == session[:charHash]
+    Key_api[params[:delete]].delete
+  end
+  @db_char_hash = Key_api.where(:charHash => session[:charHash]).all
+
+  slim :api
+end
+
+post '/api', :auth => :alliance do
+
+  # Read Config
+  config = {}
+  File.open('configs/config.json', 'r') do |file|
+    config = JSON.load(file)
+  end
+  @alliance_check = config['allianceID']
+
+  api_info = EveXML.apiKeyInfo(params[:keyID],params[:vCode])
+  @errors = {}
+
+  # Update API database# Update character api database
+  if api_info['eveapi']['error']
+    @errors[:key] = true
+  elsif api_info['eveapi']['result']['key']['rowset']['row'].kind_of?(Array) # Multiple characters
+    @errors = nil
+    api_info['eveapi']['result']['key']['rowset']['row'].each do |character|
+      if Key_api[character['characterID']].nil?
+        Key_api.insert(
+            :charID => character['characterID'],
+            :charName => character['characterName'],
+            :corpID => character['corporationID'],
+            :corpName => character['corporationName'],
+            :allianceID => character['allianceID'],
+            :allianceName => character['allianceName'],
+            :charHash => session[:charHash],
+            :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
+            :keyID => params[:keyID],
+            :vCode => params[:vCode],
+            :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
+                                              '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
+      else
+        Key_api[character['characterID']].update(
+            :corpID => character['corporationID'],
+            :corpName => character['corporationName'],
+            :allianceID => character['allianceID'],
+            :allianceName => character['allianceName'],
+            :charHash => session[:charHash],
+            :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
+            :keyID => params[:keyID],
+            :vCode => params[:vCode],
+            :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
+                                              '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
+      end
+    end
+    @db_char_hash = Key_api.where(:charHash => session[:charHash]).all
+  else # Single Character
+    @errors = nil
+    if Key_api[api_info['eveapi']['result']['key']['rowset']['row']['characterID']].nil?
+      Key_api.insert(
+          :charID => api_info['eveapi']['result']['key']['rowset']['row']['characterID'],
+          :charName => api_info['eveapi']['result']['key']['rowset']['row']['characterName'],
+          :corpID => api_info['eveapi']['result']['key']['rowset']['row']['corporationID'],
+          :corpName => api_info['eveapi']['result']['key']['rowset']['row']['corporationName'],
+          :allianceID => api_info['eveapi']['result']['key']['rowset']['row']['allianceID'],
+          :allianceName => api_info['eveapi']['result']['key']['rowset']['row']['allianceName'],
+          :charHash => session[:charHash],
+          :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
+          :keyID => params[:keyID],
+          :vCode => params[:vCode],
+          :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
+                                            '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
+    else
+      Key_api[api_info['eveapi']['result']['key']['rowset']['row']['characterID']].update(
+          :corpID => api_info['eveapi']['result']['key']['rowset']['row']['corporationID'],
+          :corpName => api_info['eveapi']['result']['key']['rowset']['row']['corporationName'],
+          :allianceID => api_info['eveapi']['result']['key']['rowset']['row']['allianceID'],
+          :allianceName => api_info['eveapi']['result']['key']['rowset']['row']['allianceName'],
+          :charHash => session[:charHash],
+          :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
+          :keyID => params[:keyID],
+          :vCode => params[:vCode],
+          :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
+                                            '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
+    end
+    @db_char_hash = Key_api.where(:charHash => session[:charHash]).all
+  end
+
+  slim :api
 end
 
 get '/login' do
@@ -146,15 +278,20 @@ get '/login' do
       xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
       Char_api.insert(
           :charID => xml_char['eveapi']['result']['rowset']['row']['characterID'],
+          :charName => xml_char['eveapi']['result']['rowset']['row']['characterName'],
           :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
+          :corpName => xml_char['eveapi']['result']['rowset']['row']['corporationName'],
           :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
+          :allianceName => xml_char['eveapi']['result']['rowset']['row']['allianceName'],
           :charHash => crest_char['CharacterOwnerHash'],
           :cacheTime => DateTime.parse(xml_char['eveapi']['cachedUntil']).to_time.to_i)
     elsif (Char_api[crest_char['CharacterID']][:cacheTime] + config['logInTimeout']) < Time.now.to_i
       xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
       Char_api[crest_char['CharacterID']].update(
           :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
+          :corpName => xml_char['eveapi']['result']['rowset']['row']['corporationName'],
           :allianceID => xml_char['eveapi']['result']['rowset']['row']['allianceID'],
+          :allianceName => xml_char['eveapi']['result']['rowset']['row']['allianceName'],
           :charHash => crest_char['CharacterOwnerHash'],
           :cacheTime => DateTime.parse(xml_char['eveapi']['cachedUntil']).to_time.to_i)
     end

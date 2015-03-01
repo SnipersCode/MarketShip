@@ -37,7 +37,17 @@ html lang="en"
           - if session[:charName]
             ul class=["nav","navbar-nav", 'navbar-right']
               li
-                a href="/logout" = 'User: ' + session[:charName]
+                a href="#" User: #{session[:charName]}
+              li
+                a.dropdown-toggle href="#" data-toggle="dropdown" role="button" aria-expanded="false"
+                  | Settings
+                  span.caret
+                ul.dropdown-menu role="menu"
+                  - if session[:allianceMember]
+                    li
+                      a href="/api" API
+                  li
+                    a href="/logout" Log Out
           - else
             a href="/login" class=["nav","navbar-nav","navbar-right"]
               img src="/img/eve_sso.png" alt="Log in with EVE SSO"

@@ -15,8 +15,7 @@ div.container
           div.form-group
             label for="eftInput" Parse EFT Output
             textarea.form-control rows="25" id="eftInput" name="eftInput" = @eft_input
-          div.form-group
-            button class=["btn","btn-primary"] type="submit" Parse
+          button class=["btn","btn-primary"] type="submit" Parse
         div class=["panel","panel-default"]
           div.panel-heading
             h3.panel-title Instructions
@@ -46,7 +45,7 @@ div.container
             p If the first line starts with '[', it will read it as a EFT format.
             p Please send an EveMail to VD. Kazuki Ishikawa if you find a bug explaining the situation.
       div.col-md-8
-        table#items class=["table","table-hover"]
+        table.ms_dataTable class=["table","table-hover"]
           thead
             tr
               th Qty

@@ -1,5 +1,8 @@
-# RubyMine Output Files
+# RubyMine Generated Files
 .idea
+
+# Ruby Bundler Generated Files
+.bundle
 
 # Eve SDE Database
 eveDB.sqlite

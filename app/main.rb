@@ -11,7 +11,38 @@ main_db = Sequel.connect(ENV['DATABASE_URL'] || 'sqlite://dev.sqlite')
 
 # Initial database setup
 configure do
+
   main_db.create_table?(:jita_lookups) do
+    Integer :typeID, :primary_key => true
+    Float :sellLow
+    Integer :time
+  end
+
+  main_db.create_table?(:hek_lookups) do
+    Integer :typeID, :primary_key => true
+    Float :sellLow
+    Integer :time
+  end
+
+  main_db.create_table?(:amarr_lookups) do
+    Integer :typeID, :primary_key => true
+    Float :sellLow
+    Integer :time
+  end
+
+  main_db.create_table?(:dodixie_lookups) do
+    Integer :typeID, :primary_key => true
+    Float :sellLow
+    Integer :time
+  end
+
+  main_db.create_table?(:rens_lookups) do
+    Integer :typeID, :primary_key => true
+    Float :sellLow
+    Integer :time
+  end
+
+  main_db.create_table?(:staging_lookups) do
     Integer :typeID, :primary_key => true
     Float :sellLow
     Integer :time
@@ -48,12 +79,49 @@ configure do
     Integer :keyID
     String :vCode
     Integer :expiration
+    Integer :kmCache, :default => 0
+  end
+
+  main_db.create_table?(:srp_requests) do
+    Integer :killID, :primary_key => true
+    Integer :lossDate
+    String :ship
+    String :fc
+    String :jabber
+    String :comments
+  end
+
+  main_db.create_table?(:kill_items) do
+    Integer :killID
+    Integer :typeID
+    Integer :qty
+    primary_key [:killID, :typeID]
   end
 
 end
 
 # Main DB Classes
 class Jita_lookup < Sequel::Model(main_db)
+  set_primary_key :typeID
+end
+
+class Hek_lookup < Sequel::Model(main_db)
+  set_primary_key :typeID
+end
+
+class Amarr_lookup < Sequel::Model(main_db)
+  set_primary_key :typeID
+end
+
+class Dodixie_lookup < Sequel::Model(main_db)
+  set_primary_key :typeID
+end
+
+class Rens_lookup < Sequel::Model(main_db)
+  set_primary_key :typeID
+end
+
+class Staging_lookup < Sequel::Model(main_db)
   set_primary_key :typeID
 end
 
@@ -67,6 +135,14 @@ end
 
 class Key_api < Sequel::Model(main_db)
   set_primary_key :charID
+end
+
+class Srp_request < Sequel::Model(main_db)
+  set_primary_key :killID
+end
+
+class Kill_item < Sequel::Model(main_db)
+  set_primary_key [:killID, :typeID]
 end
 
 require_relative 'stage1'
@@ -84,7 +160,7 @@ before do
   if session[:charHash] and (Char_api[session[:charID]][:cacheTime] + config['logInTimeout']) < Time.now.to_i
     token = EveSSO.refresh(Accounts[session[:charHash]][:refreshToken])
     crest_char = EveSSO.verify(token['access_token'])
-    xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
+    xml_char = EveXML.character_affiliation([crest_char['CharacterID']])
     # Update databases
     Accounts[session[:charHash]].update(:refreshToken => token['refresh_token'], :lastLogIn => Time.now.to_i)
     Char_api[session[:charID]].update(
@@ -139,6 +215,56 @@ get '/srp', :auth => :alliance do
   slim :srp
 end
 
+get '/srp/request', :auth => :alliance do
+
+  # Read Config
+  config = {}
+  File.open('configs/config.json', 'r') do |file|
+    config = JSON.load(file)
+  end
+
+  Key_api.where(:charHash => session[:charHash], :allianceID => config['allianceID']).all.each do |char|
+    if char[:kmCache] + config['killMailUpdateTime'] < Time.now.to_i
+
+      kill_mails = EveXML.kill_mails(char[:keyID],char[:vCode],char[:charID])
+      Key_api[char[:charID]].update(:kmCache => DateTime.parse(kill_mails['eveapi']['cachedUntil']).to_time.to_i)
+
+      ensure_array(kill_mails['eveapi']['result']['rowset']['row']).each do |kill|
+        if kill['victim']['characterID'].to_i == char[:charID] # If character is victim
+          if Srp_request[kill['killID']].nil?
+            Srp_request.insert(
+                :killID => kill['killID'],
+                :lossDate => DateTime.parse(kill['killTime']).to_time.to_i,
+                :ship => kill['victim']['shipTypeID'])
+            unless kill['victim']['shipTypeID'].to_i == 670 || kill['victim']['shipTypeID'].to_i == 33328 # Capsules
+              Kill_item.insert(:killID => kill['killID'], :typeID => kill['victim']['shipTypeID'], :qty => 1)
+            end
+
+            ensure_array(kill['rowset'][1]['row']).each do |item|
+              if srp_flag(item['flag'])
+                if Kill_item[kill['killID'], item['typeID']].nil?
+                  Kill_item.insert(
+                    :killID => kill['killID'],
+                    :typeID => item['typeID'],
+                    :qty => item['qtyDropped'].to_i + item['qtyDestroyed'].to_i)
+                else
+                  Kill_item[kill['killID'], item['typeID']].update(
+                      :qty => Kill_item[kill['killID'], item['typeID']][:qty] +
+                          item['qtyDropped'].to_i + item['qtyDestroyed'].to_i)
+                end
+              end
+            end
+
+          end
+        end
+      end
+
+    end
+  end
+
+  slim :srp_request
+end
+
 get '/api', :auth => :alliance do
 
   # Read Config
@@ -166,16 +292,17 @@ post '/api', :auth => :alliance do
   end
   @alliance_check = config['allianceID']
 
-  api_info = EveXML.apiKeyInfo(params[:keyID],params[:vCode])
+  api_info = EveXML.api_key_info(params[:keyID],params[:vCode])
   @errors = {}
 
   # Update API database# Update character api database
   if api_info['eveapi']['error']
     @errors[:key] = true
-  elsif api_info['eveapi']['result']['key']['rowset']['row'].kind_of?(Array) # Multiple characters
+  else
     @errors = nil
-    api_info['eveapi']['result']['key']['rowset']['row'].each do |character|
-      if Key_api[character['characterID']].nil?
+    ensure_array(api_info['eveapi']['result']['key']['rowset']['row']).each do |character|
+      puts character
+      if Key_api[character['characterID'].to_i].nil?
         Key_api.insert(
             :charID => character['characterID'],
             :charName => character['characterName'],
@@ -202,36 +329,6 @@ post '/api', :auth => :alliance do
             :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
                                               '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
       end
-    end
-    @db_char_hash = Key_api.where(:charHash => session[:charHash]).all
-  else # Single Character
-    @errors = nil
-    if Key_api[api_info['eveapi']['result']['key']['rowset']['row']['characterID']].nil?
-      Key_api.insert(
-          :charID => api_info['eveapi']['result']['key']['rowset']['row']['characterID'],
-          :charName => api_info['eveapi']['result']['key']['rowset']['row']['characterName'],
-          :corpID => api_info['eveapi']['result']['key']['rowset']['row']['corporationID'],
-          :corpName => api_info['eveapi']['result']['key']['rowset']['row']['corporationName'],
-          :allianceID => api_info['eveapi']['result']['key']['rowset']['row']['allianceID'],
-          :allianceName => api_info['eveapi']['result']['key']['rowset']['row']['allianceName'],
-          :charHash => session[:charHash],
-          :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
-          :keyID => params[:keyID],
-          :vCode => params[:vCode],
-          :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
-                                            '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
-    else
-      Key_api[api_info['eveapi']['result']['key']['rowset']['row']['characterID']].update(
-          :corpID => api_info['eveapi']['result']['key']['rowset']['row']['corporationID'],
-          :corpName => api_info['eveapi']['result']['key']['rowset']['row']['corporationName'],
-          :allianceID => api_info['eveapi']['result']['key']['rowset']['row']['allianceID'],
-          :allianceName => api_info['eveapi']['result']['key']['rowset']['row']['allianceName'],
-          :charHash => session[:charHash],
-          :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
-          :keyID => params[:keyID],
-          :vCode => params[:vCode],
-          :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
-                                            '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
     end
     @db_char_hash = Key_api.where(:charHash => session[:charHash]).all
   end
@@ -275,7 +372,7 @@ get '/login' do
 
     # Update character api database
     if Char_api[crest_char['CharacterID']].nil?
-      xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
+      xml_char = EveXML.character_affiliation([crest_char['CharacterID']])
       Char_api.insert(
           :charID => xml_char['eveapi']['result']['rowset']['row']['characterID'],
           :charName => xml_char['eveapi']['result']['rowset']['row']['characterName'],
@@ -286,7 +383,7 @@ get '/login' do
           :charHash => crest_char['CharacterOwnerHash'],
           :cacheTime => DateTime.parse(xml_char['eveapi']['cachedUntil']).to_time.to_i)
     elsif (Char_api[crest_char['CharacterID']][:cacheTime] + config['logInTimeout']) < Time.now.to_i
-      xml_char = EveXML.characterAffiliation([crest_char['CharacterID']])
+      xml_char = EveXML.character_affiliation([crest_char['CharacterID']])
       Char_api[crest_char['CharacterID']].update(
           :corpID => xml_char['eveapi']['result']['rowset']['row']['corporationID'],
           :corpName => xml_char['eveapi']['result']['rowset']['row']['corporationName'],

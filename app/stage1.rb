@@ -130,9 +130,25 @@ def market_lookup(id_list, region_id)
 
   price_hash[:error] = nil
 
+  # Choose Database
+  case region_id
+  when 10000002
+    database = Jita_lookup
+  when 10000042
+    database = Hek_lookup
+  when 10000043
+    database = Amarr_lookup
+  when 10000032
+    database = Dodixie_lookup
+  when 10000030
+    database = Rens_lookup
+  else
+    database = Staging_lookup
+  end
+
   # Check whether to refresh or use database data
   id_list.each do |id|
-    item = Jita_lookup[id]
+    item = database[id]
     if item.nil? or (item[:time] + config['marketUpdateTime']) < Time.now.to_i
       refresh_list += [id]
     else
@@ -158,9 +174,9 @@ def market_lookup(id_list, region_id)
 
   # Update database
   refresh_list.each do |id|
-    item = Jita_lookup[id]
+    item = database[id]
     if item.nil?
-      Jita_lookup.insert(:typeID => id, :sellLow => price_hash[id], :time => time_hash[id]/1000)
+      database.insert(:typeID => id, :sellLow => price_hash[id], :time => time_hash[id]/1000)
     else
       item.update(:sellLow => price_hash[id], :time => time_hash[id]/1000)
     end

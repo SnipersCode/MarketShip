@@ -6,5 +6,6 @@
   "minShippingPrice": 1000000,
   "marketUpdateTime": 3600,
   "logInTimeout": 300,
-  "allianceID": 150097440
+  "allianceID": 150097440,
+  "killMailUpdateTime": 60
 }

@@ -8,7 +8,8 @@ config = {
     :minShippingPrice => 1000000, #m3
     :marketUpdateTime => 3600, #sec
     :logInTimeout => 300, #sec after cache timeout
-    :allianceID => 150097440 #CCP
+    :allianceID => 150097440, #CCP
+    :killMailUpdateTime => 60 #sec
 }
 
 open('../configs/config.json','w') do |file|

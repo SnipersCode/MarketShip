@@ -4,6 +4,13 @@ div.container
       div.col-md-4
         div class=["panel","panel-default"]
           div.panel-heading
+            h3.panel-title API Requirements
+          div.panel-body.text-left
+            p Only the KillLog option needs to be selected (accessMask = 0b100000000 = 256)
+            a href="https://community.eveonline.com/support/api-key/CreatePredefined?accessMask=256"
+              | https://community.eveonline.com/support/api-key/CreatePredefined?accessMask=256
+        div class=["panel","panel-default"]
+          div.panel-heading
             h3.panel-title Instructions
           div.panel-body.text-left
             p Add APIs by pasting the Key ID and Verification to the right.
@@ -14,7 +21,8 @@ div.container
           div
             ul.list-group
               - if @errors[:key]
-                li class=["list-group-item","list-group-item-danger"] Key is wrong or has expired. Please input a different key.
+                li class=["list-group-item","list-group-item-danger"]
+                  p A key is wrong or has expired. Please input a different key and delete expired keys.
         form role="form" method="post"
           div.form-group
             label for="keyID" Key ID
@@ -39,8 +47,8 @@ div.container
                     td = value[:charID]
                     td = value[:charName]
                     td
-                      p = 'keyID: ' + value[:keyID].to_s
-                      p.ms_break = 'vCode: ' + value[:vCode]
+                      p = "keyID: #{value[:keyID].to_s}"
+                      p.ms_break = "vCode: #{value[:vCode]}"
                     - if value[:expiration] != 0
                       td = Time.at(value[:expiration]).utc.to_s
                     - else

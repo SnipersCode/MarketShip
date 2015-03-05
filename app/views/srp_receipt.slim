@@ -1,0 +1,227 @@
+div.container
+  div.starter-template
+    h1 SRP Receipt
+    div.col-md-6
+      table class=["table","table-hover","table-bordered"]
+        tbody
+          tr
+            td Kill ID:
+            td = @killID
+          tr
+            td Corporation:
+            td = @srp_request[:corpName]
+          tr
+            td Character:
+            td = @srp_request[:charName]
+          tr
+            td Date of Submission:
+            td = Time.at(@srp_request[:submissionDate]).utc.to_s
+          tr
+            td Date of Loss:
+            td = Time.at(@srp_request[:lossDate]).utc.to_s
+          tr
+            td Doctrine Ship:
+            td = @inv_types.where(:typeID => @srp_request[:ship]).first[:typeName]
+          tr
+            td Kill Mail Link:
+            td
+              a href="https://zkillboard.com/kill/#{@killID}/" zkillboard link
+          tr
+            td FC:
+            td = @srp_request[:fc]
+          tr
+            td Jabber Ping:
+            td
+              - @srp_request[:jabber].split("\r\n").each do |line|
+                p = line
+          tr
+            td Comments:
+            td
+              - @srp_request[:comments].split("\r\n").each do |line|
+                p = line
+      - if @srp_role > 0
+        div class=["panel","panel-default"]
+          div.panel-body
+            form role="form" method="post"
+              div.col-md-6
+                label Op Type
+                div.radio
+                  label.radio
+                    input type="radio" name="opType" value="None" checked="" None
+                - if @srp_request[:opType] == 'Peacetime'
+                  div.radio
+                    label.radio
+                      input type="radio" name="opType" value="Peacetime" checked="" Peacetime
+                - else
+                  div.radio
+                    label.radio
+                      input type="radio" name="opType" value="Peacetime" Peacetime
+                - if @srp_request[:opType] == 'Strategic'
+                  div.radio
+                    label.radio
+                      input type="radio" name="opType" value="Strategic" checked="" Strategic
+                - else
+                  div.radio
+                    label.radio
+                      input type="radio" name="opType" value="Strategic" Strategic
+                - @srp_types_array.each do |type|
+                  - if type == @srp_request[:opType]
+                    div.radio
+                      label.radio
+                        input type="radio" name="opType" value=type checked="" #{type}
+                  - else
+                    div.radio
+                      label.radio
+                        input type="radio" name="opType" value=type #{type}
+                div.form-group
+                  label for="override" Price:
+                  input.form-control type="text" name="price" value=number_format(@srp_request[:actualPayout])
+              div.col-md-6
+                div class=["panel","panel-warning"]
+                  div.panel-heading WARNING!
+                  div.panel-body
+                    | If no "Op Type" was detected, you must select an "Op Type" and put a value into the price box.
+                div.btn-group-vertical role="group"
+                  button class=["btn","btn-danger"] type="submit" name="action" value="Rejected" Rejected
+                  button class=["btn","btn-warning"] type="submit" name="action" value="Approved" Approved
+                  - if @srp_role > 1
+                    button class=["btn","btn-success"] type="submit" name="action" value="Paid" Paid
+              div.col-md-12
+                div.form-group
+                  label for="srpComment" SRP Comment:
+                  input.form-control type="text" name="srpComment" value=@srp_request[:srpComments]
+                input type="hidden" name="killID" value=@killID
+    - if @item_prices
+      div.col-md-6
+        table class=["table","table-hover","table-bordered"]
+          tbody
+            tr
+              td Fittings
+              td = number_format(@fittings)
+            tr
+              - if @payout_strategic.nil?
+                td Modifier: #{@srp_modifier_type}
+                td = number_format(@srp_modifier_value)
+              -elsif @srp_request[:opType] != 'None'
+                td Modifier: #{@srp_modifier_type}
+                - if @srp_request[:opType] == 'Peacetime'
+                  td #{@peacetime_percent}%
+                - else
+                  td #{@strategic_percent}%
+              -else
+                td
+                  p Modifier:
+                  p Strategic:
+                  p Peacetime:
+                td
+                  p = '(%)'
+                  p #{@strategic_percent}%
+                  p #{@peacetime_percent}%
+            tr
+              td Insurance
+              td = number_format(@srp_insurance)
+            - if @payout_strategic.nil?
+              tr
+                td Payout
+                td = number_format(@payout_peace)
+              tr
+                td Actual Payout
+                td = number_format(@actual_payout_peace)
+            - elsif @srp_request[:opType] != 'None'
+              tr
+                - if @srp_request[:opType] == 'Peacetime'
+                  td Payout: Peacetime
+                  td = number_format(@payout_peace)
+                - else
+                  td Payout: Strategic
+                  td = number_format(@payout_strategic)
+              tr
+                td Actual Payout:
+                td = number_format(@srp_request[:actualPayout])
+            - else
+              tr
+                td
+                  p Payout:
+                  p Strategic:
+                  p Peacetime:
+                td
+                  p = '(Isk)'
+                  p = number_format(@payout_strategic)
+                  p = number_format(@payout_peace)
+              tr
+                td
+                  p Actual Payout:
+                  p Strategic:
+                  p Peacetime:
+                td
+                  p = '(Isk)'
+                  p = number_format(@actual_payout_strategic)
+                  p = number_format(@actual_payout_peace)
+            tr
+              td Op Type:
+              td #{@srp_request[:opType]}
+            tr
+              td Status:
+              - if @srp_request[:status] == 'Approved'
+                td.warning #{@srp_request[:status]}
+              - elsif @srp_request[:status] == 'Paid'
+                td.success #{@srp_request[:status]}
+              - elsif @srp_request[:status] == 'Rejected'
+                td.danger #{@srp_request[:status]}
+              - else
+                td #{@srp_request[:status]}
+            tr
+              td SRP Approver:
+              td #{@srp_request[:approver]}
+            tr
+              td SRP Payer:
+              td #{@srp_request[:payer]}
+            tr
+              td SRP Comments:
+              td
+                - if @srp_request[:srpComments]
+                  - @srp_request[:srpComments].split("\r\n").each do |line|
+                    p = line
+      div.col-md-12
+        table.ms_dataTable class=["table", "table-hover"]
+          thead
+            tr
+              th Qty
+              th Item
+              th Jita
+              th Amarr
+              th Dodixie
+              th Hek
+              th Rens
+              th Staging
+              th Avg x Qty
+          tbody
+            - @item_prices.each do |id,item|
+              tr
+                td = item[:qty]
+                td = @inv_types.where(:typeID => id).first[:typeName]
+                - if item[:jita][:ignore]
+                  td.danger = number_format(item[:jita][:price])
+                - else
+                  td = number_format(item[:jita][:price])
+                - if item[:amarr][:ignore]
+                  td.danger = number_format(item[:amarr][:price])
+                - else
+                  td = number_format(item[:amarr][:price])
+                - if item[:dodixie][:ignore]
+                  td.danger = number_format(item[:dodixie][:price])
+                - else
+                  td = number_format(item[:dodixie][:price])
+                - if item[:hek][:ignore]
+                  td.danger = number_format(item[:hek][:price])
+                - else
+                  td = number_format(item[:hek][:price])
+                - if item[:rens][:ignore]
+                  td.danger = number_format(item[:rens][:price])
+                - else
+                  td = number_format(item[:rens][:price])
+                - if item[:staging][:ignore]
+                  td.danger = number_format(item[:staging][:price])
+                - else
+                  td = number_format(item[:staging][:price])
+                td = number_format(item[:average])

@@ -1,3 +1,133 @@
 div.container
   div.starter-template
-    h1 SRP Request
+    table.ms_dataTable class=["table","table-hover"]
+      thead
+        tr
+          th ID
+          th Date of Loss
+          th Ship
+          th Status
+          th Action
+      - if @kill_mails
+        tbody
+          - @kill_mails.each do |kill|
+            tr
+              td = kill[:killID]
+              td = Time.at(kill[:lossDate]).utc.to_s
+              td = @inv_types.where(:typeID => kill[:ship]).first[:typeName]
+              - if kill[:status] == 'Rejected'
+                td.danger = kill[:status]
+              - else
+                td = kill[:status]
+              td
+                - if kill[:status] == 'Not Submitted' or kill[:status] == 'Rejected'
+                  a href=("/srp/request?killID=" + kill[:killID].to_s) class="btn btn-primary" role="button" Select
+                - elsif kill[:status] == 'Submitted'
+                  a href=("/srp/request?delete=" + kill[:killID].to_s) class="btn btn-danger" role="button" Cancel
+                  a href=("/srp/receipt?killID=" + kill[:killID].to_s) class="btn btn-primary" role="button" Select
+                - else
+                  a href=("/srp/receipt?killID=" + kill[:killID].to_s) class="btn btn-primary" role="button" Select
+    - if @item_prices
+      table.ms_dataTable class=["table", "table-hover"]
+        thead
+          tr
+            th Qty
+            th Item
+            th Jita
+            th Amarr
+            th Dodixie
+            th Hek
+            th Rens
+            th Staging
+            th Avg x Qty
+        tbody
+          - @item_prices.each do |id,item|
+            tr
+              td = item[:qty]
+              td = @inv_types.where(:typeID => id).first[:typeName]
+              - if item[:jita][:ignore]
+                td.danger = number_format(item[:jita][:price])
+              - else
+                td = number_format(item[:jita][:price])
+              - if item[:amarr][:ignore]
+                td.danger = number_format(item[:amarr][:price])
+              - else
+                td = number_format(item[:amarr][:price])
+              - if item[:dodixie][:ignore]
+                td.danger = number_format(item[:dodixie][:price])
+              - else
+                td = number_format(item[:dodixie][:price])
+              - if item[:hek][:ignore]
+                td.danger = number_format(item[:hek][:price])
+              - else
+                td = number_format(item[:hek][:price])
+              - if item[:rens][:ignore]
+                td.danger = number_format(item[:rens][:price])
+              - else
+                td = number_format(item[:rens][:price])
+              - if item[:staging][:ignore]
+                td.danger = number_format(item[:staging][:price])
+              - else
+                td = number_format(item[:staging][:price])
+              td = number_format(item[:average])
+      div.col-md-4
+        table class=["table","table-hover","table-bordered"]
+          tbody
+            tr
+              td Fittings
+              td = number_format(@fittings)
+            tr
+              - if @payout_strategic.nil?
+                td Modifier: #{@srp_modifier_type}
+                td = number_format(@srp_modifier_value)
+              -else
+                td
+                  p Modifier:
+                  p Strategic:
+                  p Peacetime:
+                td
+                  p = '(%)'
+                  p #{@strategic_percent}%
+                  p #{@peacetime_percent}%
+            tr
+              td Insurance
+              td = number_format(@srp_insurance)
+            - if @payout_strategic.nil?
+              tr
+                td Payout
+                td = number_format(@payout_peace)
+              tr
+                td Actual Payout
+                td = number_format(@actual_payout_peace)
+            - else
+              tr
+                td
+                  p Payout:
+                  p Strategic:
+                  p Peacetime:
+                td
+                  p = '(Isk)'
+                  p = number_format(@payout_strategic)
+                  p = number_format(@payout_peace)
+              tr
+                td
+                  p Actual Payout:
+                  p Strategic:
+                  p Peacetime:
+                td
+                  p = '(Isk)'
+                  p = number_format(@actual_payout_strategic)
+                  p = number_format(@actual_payout_peace)
+      div.col-md-8
+        form role="form" method="post"
+          input type="hidden" name="killID" value=@killID
+          div.form-group
+            label for="fc" FC
+            input.form-control id="fc" name="fc" placeholder="Fleet Commander"
+          div.form-group
+            label for="ping" Ping
+            textarea.form-control rows="10" id="ping" name="ping"
+          div.form-group
+            label for="comments" Comments
+            textarea.form-control rows="5" id="comments" name="comments"
+          button class=["btn","btn-primary"] type="submit" Submit

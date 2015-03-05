@@ -1,3 +1,88 @@
-div.container
+div.container-fluid
   div.starter-template
     h1 SRP
+    a href=("/srp/request") class="btn btn-primary" role="button" Request SRP
+    h2 List of Requests
+    div.col-lg-12
+      table.ms_dataTable class=["table", "table-hover"]
+        thead
+          tr
+            th killID
+            th Submission Date
+            th Loss Date
+            th Status
+            th Corporation
+            th Character
+            th Ship
+            th FC
+            th OP Type
+            th Strategic Payout
+            th Peacetime Payout
+            th Actual Payout
+            th Action
+        tbody
+          - @srp_list.each do |item|
+            - if item[:status] == 'Approved'
+              tr.warning
+                td = item[:killID]
+                td = Time.at(item[:submissionDate]).utc.to_s
+                td = Time.at(item[:lossDate]).utc.to_s
+                td = item[:status]
+                td = item[:corpName]
+                td = item[:charName]
+                td = @inv_types.where(:typeID => item[:ship]).first[:typeName]
+                td = item[:fc]
+                td = item[:opType]
+                td = number_format(item[:calcPayoutStrat])
+                td = number_format(item[:calcPayoutPeace])
+                td = number_format(item[:actualPayout])
+                td
+                  a href=("/srp/receipt?killID=" + item[:killID].to_s) class="btn btn-primary" role="button" View
+            - elsif item[:status] == 'Paid'
+              tr.success
+                td = item[:killID]
+                td = Time.at(item[:submissionDate]).utc.to_s
+                td = Time.at(item[:lossDate]).utc.to_s
+                td = item[:status]
+                td = item[:corpName]
+                td = item[:charName]
+                td = @inv_types.where(:typeID => item[:ship]).first[:typeName]
+                td = item[:fc]
+                td = item[:opType]
+                td = number_format(item[:calcPayoutStrat])
+                td = number_format(item[:calcPayoutPeace])
+                td = number_format(item[:actualPayout])
+                td
+                  a href=("/srp/receipt?killID=" + item[:killID].to_s) class="btn btn-primary" role="button" View
+            - elsif item[:status] == 'Rejected'
+              tr.danger
+                td = item[:killID]
+                td = Time.at(item[:submissionDate]).utc.to_s
+                td = Time.at(item[:lossDate]).utc.to_s
+                td = item[:status]
+                td = item[:corpName]
+                td = item[:charName]
+                td = @inv_types.where(:typeID => item[:ship]).first[:typeName]
+                td = item[:fc]
+                td = item[:opType]
+                td = number_format(item[:calcPayoutStrat])
+                td = number_format(item[:calcPayoutPeace])
+                td = number_format(item[:actualPayout])
+                td
+                  a href=("/srp/receipt?killID=" + item[:killID].to_s) class="btn btn-primary" role="button" View
+            - elsif item[:status] == 'Submitted'
+              tr
+                td = item[:killID]
+                td = Time.at(item[:submissionDate]).utc.to_s
+                td = Time.at(item[:lossDate]).utc.to_s
+                td = item[:status]
+                td = item[:corpName]
+                td = item[:charName]
+                td = @inv_types.where(:typeID => item[:ship]).first[:typeName]
+                td = item[:fc]
+                td = item[:opType]
+                td = number_format(item[:calcPayoutStrat])
+                td = number_format(item[:calcPayoutPeace])
+                td = number_format(item[:actualPayout])
+                td
+                  a href=("/srp/receipt?killID=" + item[:killID].to_s) class="btn btn-primary" role="button" View

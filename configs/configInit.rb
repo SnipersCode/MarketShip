@@ -9,7 +9,12 @@ config = {
     :marketUpdateTime => 3600, #sec
     :logInTimeout => 300, #sec after cache timeout
     :allianceID => 150097440, #CCP
-    :killMailUpdateTime => 60 #sec
+    :killMailUpdateTime => 60, #sec after cache timeout
+    :stagingSystem => 10000058, #CCP Region ID
+    :percentIgnoreHigh => 30, # %: 0.1-100.0
+    :percentIgnoreLow => 30, # %: 0.1-100.0
+    :strategicPercent => 90, # %: 0.1-100.0
+    :peacetimePercent => 70 # %: 0.1-100.0
 }
 
 open('../configs/config.json','w') do |file|

@@ -7,5 +7,10 @@
   "marketUpdateTime": 3600,
   "logInTimeout": 300,
   "allianceID": 150097440,
-  "killMailUpdateTime": 60
+  "killMailUpdateTime": 60,
+  "stagingSystem": 10000058,
+  "percentIgnoreHigh": 30,
+  "percentIgnoreLow": 30,
+  "strategicPercent": 90,
+  "peacetimePercent": 70
 }

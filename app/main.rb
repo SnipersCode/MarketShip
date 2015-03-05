@@ -85,16 +85,34 @@ configure do
   main_db.create_table?(:srp_requests) do
     Integer :killID, :primary_key => true
     Integer :lossDate
-    String :ship
+    Integer :ship
     String :fc
     String :jabber
     String :comments
+    String :status, :default => 'Not Submitted'
+    String :charHash
+    Float :calcPayoutStrat
+    Float :calcPayoutPeace
+    Float :actualPayout, :default => 0
+    String :opType
+    Integer :submissionDate
+    String :charName
+    String :corpName
+    String :approver
+    String :payer
+    String :srpComments
   end
 
   main_db.create_table?(:kill_items) do
     Integer :killID
     Integer :typeID
     Integer :qty
+    Float :jita
+    Float :amarr
+    Float :dodixie
+    Float :hek
+    Float :rens
+    Float :staging
     primary_key [:killID, :typeID]
   end
 
@@ -156,6 +174,12 @@ before do
     config = JSON.load(file)
   end
 
+  roles = {}
+  # Read Roles [TEMPORARY]
+  File.open('configs/roles.json', 'r') do |file|
+    roles = JSON.load(file)
+  end
+
   # Refresh character info if cache time expires
   if session[:charHash] and (Char_api[session[:charID]][:cacheTime] + config['logInTimeout']) < Time.now.to_i
     token = EveSSO.refresh(Accounts[session[:charHash]][:refreshToken])
@@ -183,6 +207,11 @@ before do
     session[:allianceMember] = false
   end
 
+  # Roles check [TEMPORARY]
+  if roles[session[:charID].to_s]
+    session[:srp] = roles[session[:charID].to_s][:srp]
+  end
+
   # Bypass login for development
   unless ENV['DATABASE_URL']
     session[:charHash] = nil # Must be nil
@@ -190,15 +219,27 @@ before do
     session[:charID] = 94074701
 
     session[:allianceMember] = true
+    session[:srp] = 1
   end
 
 end
 
-# Page authentication checks
+# Page authentication only checks
 set(:auth) do |lowestRole|
   condition do
     if lowestRole == :alliance and session[:allianceMember] == false
       redirect to('/login')
+    end
+  end
+end
+
+# Page API checks w/ Authentication
+set(:api) do |lowestRole|
+  condition do
+    if lowestRole == :alliance and session[:allianceMember] == false
+      redirect to('/login')
+    elsif not refresh_keys(session[:charHash])
+      redirect to('/api?error=invalidAPI')
     end
   end
 end
@@ -212,10 +253,16 @@ get '/doctrines', :auth => :alliance do
 end
 
 get '/srp', :auth => :alliance do
+  eve_db = Sequel.connect(ENV['EVE_SDE'] || 'sqlite://eveDBSlim.sqlite')
+  @inv_types = eve_db[:invTypes]
+  @srp_list = Srp_request
+  @srp_list.each do |item|
+    puts item[:submissionDate]
+  end
   slim :srp
 end
 
-get '/srp/request', :auth => :alliance do
+get '/srp/request', :api => :alliance do
 
   # Read Config
   config = {}
@@ -223,6 +270,7 @@ get '/srp/request', :auth => :alliance do
     config = JSON.load(file)
   end
 
+  # Kill Mail Retrieval
   Key_api.where(:charHash => session[:charHash], :allianceID => config['allianceID']).all.each do |char|
     if char[:kmCache] + config['killMailUpdateTime'] < Time.now.to_i
 
@@ -235,7 +283,10 @@ get '/srp/request', :auth => :alliance do
             Srp_request.insert(
                 :killID => kill['killID'],
                 :lossDate => DateTime.parse(kill['killTime']).to_time.to_i,
-                :ship => kill['victim']['shipTypeID'])
+                :ship => kill['victim']['shipTypeID'],
+                :charHash => session[:charHash],
+                :charName => kill['victim']['characterName'],
+                :corpName => kill['victim']['corporationName'])
             unless kill['victim']['shipTypeID'].to_i == 670 || kill['victim']['shipTypeID'].to_i == 33328 # Capsules
               Kill_item.insert(:killID => kill['killID'], :typeID => kill['victim']['shipTypeID'], :qty => 1)
             end
@@ -254,7 +305,8 @@ get '/srp/request', :auth => :alliance do
                 end
               end
             end
-
+          else
+            Srp_request[kill['killID']].update(:charHash => session[:charHash])
           end
         end
       end
@@ -262,7 +314,367 @@ get '/srp/request', :auth => :alliance do
     end
   end
 
+  eve_db = Sequel.connect(ENV['EVE_SDE'] || 'sqlite://eveDBSlim.sqlite')
+  @inv_types = eve_db[:invTypes]
+
+  if params[:killID] # If kill is selected
+    # Lookup Prices
+    @item_prices = {}
+    [10000002,10000042,10000043,10000032,10000030,config['stagingSystem'].to_i].each do |region|
+      market_lookup(Kill_item.where(:killID => params[:killID]).map(:typeID),region)
+    end
+
+    Kill_item.where(:killID => params[:killID]).all.each do |item|
+      @item_prices[item[:typeID]] = {}
+      @item_prices[item[:typeID]][:qty] = item[:qty]
+      @item_prices[item[:typeID]][:jita] = {:price => Jita_lookup[item[:typeID]][:sellLow]}
+      @item_prices[item[:typeID]][:amarr] = {:price => Amarr_lookup[item[:typeID]][:sellLow]}
+      @item_prices[item[:typeID]][:dodixie] = {:price => Dodixie_lookup[item[:typeID]][:sellLow]}
+      @item_prices[item[:typeID]][:hek] = {:price => Hek_lookup[item[:typeID]][:sellLow]}
+      @item_prices[item[:typeID]][:rens] = {:price => Rens_lookup[item[:typeID]][:sellLow]}
+      @item_prices[item[:typeID]][:staging] = {:price => Staging_lookup[item[:typeID]][:sellLow]}
+
+      # Freeze Prices
+      Kill_item[params[:killID],item[:typeID]].update(
+          :jita => Jita_lookup[item[:typeID]][:sellLow],
+          :amarr => Amarr_lookup[item[:typeID]][:sellLow],
+          :dodixie => Dodixie_lookup[item[:typeID]][:sellLow],
+          :hek => Hek_lookup[item[:typeID]][:sellLow],
+          :rens => Rens_lookup[item[:typeID]][:sellLow],
+          :staging => Staging_lookup[item[:typeID]][:sellLow])
+    end
+
+    # Average Calculation
+    @item_prices.each do |id,item|
+      total_regions = 0
+      num_regions = 0
+      item.each do |region,info|
+        unless region == :qty
+          if info[:price].between?(@item_prices[id][:jita][:price]*(1-config['percentIgnoreHigh'].to_f/100),
+                                   @item_prices[id][:jita][:price]*(1+config['percentIgnoreLow'].to_f/100))
+            @item_prices[id][region][:ignore] = false
+            total_regions += info[:price]
+            num_regions += 1
+          else
+            @item_prices[id][region][:ignore] = true
+          end
+        end
+      end
+      @item_prices[id][:average] = total_regions.to_f/num_regions * item[:qty]
+    end
+
+    # Total Module + Hull
+    @fittings = 0
+    @item_prices.each_key do |id|
+      @fittings += @item_prices[id][:average]
+    end
+
+    # SRP Additions
+
+    # Read Insurances
+    insurance = {}
+    File.open('configs/insurance.json', 'r') do |file|
+      insurance = JSON.load(file)
+    end
+    # Read Special Rates
+    special_srp = {}
+    File.open('configs/specialSrp.json', 'r') do |file|
+      special_srp = JSON.load(file)
+    end
+
+    srp_types = {}
+    File.open('configs/srpTypes.json', 'r') do |file|
+      srp_types = JSON.load(file)
+    end
+    # Determine Modifiers
+    @srp_modifier_type = 'None'
+    @srp_modifier_value = 0
+
+    ship_name = @inv_types.where(:typeID => Srp_request[params[:killID]][:ship]).first[:typeName]
+    @srp_insurance = (insurance[ship_name] || 0) * 0.7
+    fixed = false
+    if special_srp[ship_name].nil?
+      @srp_modifier_type = 'None'
+      @srp_modifier_value = 0
+    else
+      @srp_modifier_type = special_srp[ship_name]
+      if special_srp[ship_name] == 'Fixed'
+        @srp_modifier_value = srp_types['Fixed'][ship_name]
+        fixed = true
+      else
+        if srp_types[special_srp[ship_name]].is_a?(String)
+          @srp_modifier_value = srp_types[special_srp[ship_name]].chop.to_f/100
+        else # Is a number
+          @srp_modifier_value = srp_types[special_srp[ship_name]]
+          fixed = true
+        end
+      end
+    end
+
+    # Determine Payout
+    @payout_peace = 0
+    @payout_strategic = 0
+    @peacetime_percent = config['peacetimePercent']
+    @strategic_percent = config['strategicPercent']
+    case @srp_modifier_type
+    when 'None'
+      @payout_peace = @fittings * @peacetime_percent - @srp_insurance
+      @payout_strategic = @fittings * @strategic_percent - @srp_insurance
+    else
+      if fixed # Fixed Price
+        @payout_peace = @srp_modifier_value - @srp_insurance
+        @payout_strategic = nil
+      else # Special User Defined
+        @payout_peace = @fittings * @srp_modifier_value - @srp_insurance
+        @payout_strategic = nil
+      end
+    end
+
+    # Rounding
+    if @payout_peace.to_i / 100000 == 0
+      @actual_payout_peace = @payout_peace.to_i / 100 * 100
+    else
+      @actual_payout_peace = @payout_peace.to_i / 100000 * 100000
+    end
+    unless @payout_strategic.nil?
+      if @payout_strategic.to_i / 100000 == 0
+        @actual_payout_strategic = @payout_strategic.to_i / 100 * 100
+      else
+        @actual_payout_strategic = @payout_strategic.to_i / 100000 * 100000
+      end
+    end
+
+    # Record Calculations
+    actual_payout = 0
+    if @payout_strategic.nil?
+      actual_payout = @actual_payout_peace
+    end
+    Srp_request[params[:killID]].update(
+        :calcPayoutStrat => @actual_payout_strategic || @actual_payout_peace,
+        :calcPayoutPeace => @actual_payout_peace,
+        :actualPayout => actual_payout,
+        :opType => @srp_modifier_type)
+
+    @killID = params[:killID]
+
+  elsif params[:delete]
+    if Srp_request[params[:delete]][:status] == 'Submitted'
+      Srp_request[params[:delete]].update(
+          :status => 'Not Submitted',
+          :fc => nil,
+          :jabber => nil,
+          :comments => nil,
+          :submissionDate => nil,
+          :calcPayoutStrat => nil,
+          :calcPayoutPeace => nil,
+          :opType => nil)
+    end
+
+    @item_prices = nil
+    @fittings = 0
+    @srp_modifier_type = 'None'
+    @srp_modifier_value = 0
+    @payout = 0
+    @srp_insurance = 0
+
+  else
+    @item_prices = nil
+    @fittings = 0
+    @srp_modifier_type = 'None'
+    @srp_modifier_value = 0
+    @payout = 0
+    @srp_insurance = 0
+  end
+
+  @kill_mails = Srp_request.where(:charHash => session[:charHash]).all
+
   slim :srp_request
+end
+
+post '/srp/request', :api => :alliance do
+  if Srp_request[params[:killID]][:status] == 'Not Submitted' or Srp_request[params[:killID]][:status] == 'Rejected'
+    Srp_request[params[:killID]].update(
+                                    :status => 'Submitted',
+                                    :fc => params[:fc],
+                                    :jabber => params[:ping],
+                                    :comments => params[:comments],
+                                    :submissionDate => Time.now.to_i
+    )
+  end
+  redirect to('/srp/receipt?killID=' + params[:killID])
+end
+
+get '/srp/receipt', :auth => :alliance do
+
+  # Read Config
+  config = {}
+  File.open('configs/config.json', 'r') do |file|
+    config = JSON.load(file)
+  end
+
+  eve_db = Sequel.connect(ENV['EVE_SDE'] || 'sqlite://eveDBSlim.sqlite')
+  @inv_types = eve_db[:invTypes]
+
+  @killID = params[:killID]
+  @srp_request = Srp_request[params[:killID]]
+
+  @item_prices = {}
+  Kill_item.where(:killID => params[:killID]).all.each do |item|
+    @item_prices[item[:typeID]] = {}
+    @item_prices[item[:typeID]][:qty] = item[:qty]
+    @item_prices[item[:typeID]][:jita] = {:price => item[:jita]}
+    @item_prices[item[:typeID]][:amarr] = {:price => item[:amarr]}
+    @item_prices[item[:typeID]][:dodixie] = {:price => item[:dodixie]}
+    @item_prices[item[:typeID]][:hek] = {:price => item[:hek]}
+    @item_prices[item[:typeID]][:rens] = {:price => item[:rens]}
+    @item_prices[item[:typeID]][:staging] = {:price => item[:staging]}
+  end
+
+  # Average Calculation
+  @item_prices.each do |id,item|
+    total_regions = 0
+    num_regions = 0
+    item.each do |region,info|
+      unless region == :qty
+        if info[:price].between?(@item_prices[id][:jita][:price]*(1-config['percentIgnoreHigh'].to_f/100),
+                                 @item_prices[id][:jita][:price]*(1+config['percentIgnoreLow'].to_f/100))
+          @item_prices[id][region][:ignore] = false
+          total_regions += info[:price]
+          num_regions += 1
+        else
+          @item_prices[id][region][:ignore] = true
+        end
+      end
+    end
+    @item_prices[id][:average] = total_regions.to_f/num_regions * item[:qty]
+  end
+
+  # Total Module + Hull
+  @fittings = 0
+  @item_prices.each_key do |id|
+    @fittings += @item_prices[id][:average]
+  end
+
+  # SRP Additions
+
+  # Read Insurances
+  insurance = {}
+  File.open('configs/insurance.json', 'r') do |file|
+    insurance = JSON.load(file)
+  end
+  # Read Special Rates
+  special_srp = {}
+  File.open('configs/specialSrp.json', 'r') do |file|
+    special_srp = JSON.load(file)
+  end
+
+  srp_types = {}
+  File.open('configs/srpTypes.json', 'r') do |file|
+    srp_types = JSON.load(file)
+  end
+
+  @srp_types_array = srp_types.keys
+
+  # Determine Modifiers
+  @srp_modifier_type = 'None'
+  @srp_modifier_value = 0
+
+  ship_name = @inv_types.where(:typeID => Srp_request[params[:killID]][:ship]).first[:typeName]
+  @srp_insurance = (insurance[ship_name] || 0) * 0.7
+  fixed = false
+  if special_srp[ship_name].nil?
+    @srp_modifier_type = 'None'
+    @srp_modifier_value = 0
+  else
+    @srp_modifier_type = special_srp[ship_name]
+    if special_srp[ship_name] == 'Fixed'
+      @srp_modifier_value = srp_types['Fixed'][ship_name]
+      fixed = true
+    else
+      if srp_types[special_srp[ship_name]].is_a?(String)
+        @srp_modifier_value = srp_types[special_srp[ship_name]].chop.to_f/100
+      else # Is a number
+        @srp_modifier_value = srp_types[special_srp[ship_name]]
+        fixed = true
+      end
+    end
+  end
+
+  # Determine Payout
+  @payout_peace = 0
+  @payout_strategic = 0
+  @peacetime_percent = config['peacetimePercent']
+  @strategic_percent = config['strategicPercent']
+  case @srp_modifier_type
+    when 'None'
+      @payout_peace = @fittings * @peacetime_percent - @srp_insurance
+      @payout_strategic = @fittings * @strategic_percent - @srp_insurance
+    else
+      if fixed # Fixed Price
+        @payout_peace = @srp_modifier_value - @srp_insurance
+        @payout_strategic = nil
+      else # Special User Defined
+        @payout_peace = @fittings * @srp_modifier_value - @srp_insurance
+        @payout_strategic = nil
+      end
+  end
+
+  # Rounding
+  if @payout_peace.to_i / 100000 == 0
+    @actual_payout_peace = @payout_peace.to_i / 100 * 100
+  else
+    @actual_payout_peace = @payout_peace.to_i / 100000 * 100000
+  end
+  unless @payout_strategic.nil?
+    if @payout_strategic.to_i / 100000 == 0
+      @actual_payout_strategic = @payout_strategic.to_i / 100 * 100
+    else
+      @actual_payout_strategic = @payout_strategic.to_i / 100000 * 100000
+    end
+  end
+
+  # Roles
+  @srp_role = session[:srp]
+
+  slim :srp_receipt
+end
+
+post '/srp/receipt', :auth => :alliance do
+  case params[:action]
+  when 'Rejected'
+    if session[:srp] > 0
+      Srp_request[params[:killID]].update(
+          :opType => params[:opType],
+          :actualPayout => params[:price].delete(','),
+          :srpComments => params[:srpComment],
+          :approver => session[:charName],
+          :status => 'Rejected')
+    end
+  when 'Approved'
+    if session[:srp] > 0
+      Srp_request[params[:killID]].update(
+          :opType => params[:opType],
+          :actualPayout => params[:price].delete(','),
+          :srpComments => params[:srpComment],
+          :approver => session[:charName],
+          :status => 'Approved')
+    end
+  when 'Paid'
+    if session[:srp] > 1
+      Srp_request[params[:killID]].update(
+          :opType => params[:opType],
+          :actualPayout => params[:price].delete(','),
+          :srpComments => params[:srpComment],
+          :payer => session[:charName],
+          :status => 'Paid')
+      if Srp_request[params[:killID]][:approver].nil?
+        Srp_request[params[:killID]].update(:approver => session[:charName])
+      end
+    end
+  else
+    redirect to('/srp')
+  end
+  redirect to('/srp/receipt?killID=' + params[:killID])
 end
 
 get '/api', :auth => :alliance do
@@ -274,7 +686,12 @@ get '/api', :auth => :alliance do
   end
   @alliance_check = config['allianceID'].to_i
 
-  @errors = nil
+  @errors = {}
+  if params[:error] == 'invalidAPI'
+    @errors[:key] = true
+  else
+    @errors = nil
+  end
   if params[:delete] and Key_api[params[:delete]][:charHash] == session[:charHash]
     Key_api[params[:delete]].delete
   end
@@ -295,13 +712,17 @@ post '/api', :auth => :alliance do
   api_info = EveXML.api_key_info(params[:keyID],params[:vCode])
   @errors = {}
 
-  # Update API database# Update character api database
+  # Update character api database
   if api_info['eveapi']['error']
     @errors[:key] = true
   else
     @errors = nil
     ensure_array(api_info['eveapi']['result']['key']['rowset']['row']).each do |character|
-      puts character
+      if api_info['eveapi']['result']['key']['expires'].empty?
+        expiration = '1970-01-01 00:00:00'# Epoch 0 = Never
+      else
+        expiration = api_info['eveapi']['result']['key']['expires']
+      end
       if Key_api[character['characterID'].to_i].nil?
         Key_api.insert(
             :charID => character['characterID'],
@@ -314,8 +735,7 @@ post '/api', :auth => :alliance do
             :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
             :keyID => params[:keyID],
             :vCode => params[:vCode],
-            :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
-                                              '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
+            :expiration => DateTime.parse(expiration).to_time.to_i)
       else
         Key_api[character['characterID']].update(
             :corpID => character['corporationID'],
@@ -326,12 +746,11 @@ post '/api', :auth => :alliance do
             :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
             :keyID => params[:keyID],
             :vCode => params[:vCode],
-            :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
-                                              '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
+            :expiration => DateTime.parse(expiration).to_time.to_i) # Epoch 0 = Never
       end
     end
-    @db_char_hash = Key_api.where(:charHash => session[:charHash]).all
   end
+  @db_char_hash = Key_api.where(:charHash => session[:charHash]).all
 
   slim :api
 end

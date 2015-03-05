@@ -80,31 +80,38 @@ def refresh_keys(account)
     if key[:cacheTime] + config['logInTimeout'] < Time.now.to_i
       api_info = EveXML.api_key_info(key[:keyID],key[:vCode])
       if api_info['eveapi']['error']
-        Key_api[character['characterID']].update(
+        Key_api[key[:charID]].update(
             :corpID => nil,
             :corpName => nil,
             :allianceID => nil,
             :allianceName => nil)
+        return false
       else
         ensure_array(api_info['eveapi']['result']['key']['rowset']['row']).each do |character|
+          if api_info['eveapi']['result']['key']['expires'].empty?
+            expiration = '1970-01-01 00:00:00'# Epoch 0 = Never
+          else
+            expiration = api_info['eveapi']['result']['key']['expires']
+          end
             Key_api[character['characterID']].update(
                 :corpID => character['corporationID'],
                 :corpName => character['corporationName'],
                 :allianceID => character['allianceID'],
                 :allianceName => character['allianceName'],
                 :cacheTime => DateTime.parse(api_info['eveapi']['cachedUntil']).to_time.to_i,
-                :expiration => DateTime.parse(api_info['eveapi']['result']['key']['expires'].chomp! ||
-                                                  '1970-01-01 00:00:00').to_time.to_i) # Epoch 0 = Never
+                :expiration => DateTime.parse(expiration).to_time.to_i) # Epoch 0 = Never
         end
       end
     end
   end
 
+  true
 end
 
 def srp_flag(flag)
   flag = flag.to_i # Flag is input as string
   flag.between?(11,34) || # Low to High Slots
+      flag == 87 || # Drone Bay
       flag == 89 || # Implant
       flag.between?(92,99) || # Rigs
       flag.between?(125,132) # Subsystem

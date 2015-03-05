@@ -126,7 +126,7 @@ div.container
                 td = number_format(@payout_peace)
               tr
                 td Actual Payout
-                td = number_format(@actual_payout_peace)
+                td = number_format(@srp_request[:actualPayout])
             - elsif @srp_request[:opType] != 'None'
               tr
                 - if @srp_request[:opType] == 'Peacetime'

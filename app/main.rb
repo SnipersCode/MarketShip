@@ -210,6 +210,8 @@ before do
   # Roles check [TEMPORARY]
   if roles[session[:charID].to_s]
     session[:srp] = roles[session[:charID].to_s][:srp]
+  else
+    session[:srp] = 0
   end
 
   # Bypass login for development

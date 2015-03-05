@@ -1,6 +1,6 @@
 div.container
   div.starter-template
-    - unless @missing_items.size == 0 && @errors[:eveCentral].nil?
+    - unless @missing_items.size == 0 && @errors[:eveCentral].nil? && !@errors[:packageLimit]
       div
         ul.list-group
           - unless @errors[:eveCentral].nil?
@@ -9,6 +9,9 @@ div.container
             li class=["list-group-item","list-group-item-danger"] Warning! #{@missing_items.size} item(s) could not be parsed.
             - @missing_items.each do |item|
               li class=["list-group-item","list-group-item-warning"] = item
+          - if @errors[:packageLimit]
+              li class=["list-group-item","list-group-item-danger"]
+                | Error! Plan is over 100 packages. Please split up your shopping cart.
     div
       div.col-md-4
         form role="form" method="post"

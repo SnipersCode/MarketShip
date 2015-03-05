@@ -871,7 +871,6 @@ post '/shopping' do
     @total_shipping = 0
     @errors = {}
   else
-    @initialized = true
 
     config = {}
     pack_vol = {}
@@ -920,7 +919,10 @@ post '/shopping' do
       items_to_pack[key] = {:key => key, :qty => @db_item_hash[key][:qty], :vol => @db_item_hash[key][:volume]}
     end
 
-    unless @large_items > 0
+    @errors[:packageLimit] = @total_volume > config['shippingBulkVol'] * 100  # Prevent plans larger than 100 packages
+    puts @total_volume > config['shippingBulkVol'] * 100
+    unless @large_items > 0 or @errors[:packageLimit]
+      @initialized = true
       # Packaging
       package_num = 1
       volume_to_pack = @total_volume

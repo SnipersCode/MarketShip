@@ -55,11 +55,11 @@ class EveXML
   end
 
   def self.api_key_info(key_id,v_code)
-    get('/account/APIKeyInfo.xml.aspx', :query => {:keyID => key_id, :vCode => v_code}, :verify => false)
+    get('/account/APIKeyInfo.xml.aspx', :query => {:keyID => key_id, :vCode => v_code}, :verify => true)
   end
 
   def self.kill_mails(key_id,v_code,char_id)
-    get('/Char/KillMails.xml.aspx', :query=> {:keyID => key_id, :characterID => char_id, :vCode => v_code}, :verify => false)
+    get('/Char/KillMails.xml.aspx', :query=> {:keyID => key_id, :characterID => char_id, :vCode => v_code}, :verify => true)
   end
 
 end
